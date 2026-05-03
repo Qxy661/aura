@@ -1,0 +1,152 @@
+import { useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
+import { api } from "@/lib/api";
+
+interface Holding {
+  id: number;
+  name: string;
+  code: string;
+  asset_type: string;
+  cost_price: number;
+  shares: number;
+  created_at: string;
+}
+
+interface MarketData {
+  current_price: number;
+  market_value: number;
+  profit: number;
+  profit_pct: number;
+  change_pct: number;
+}
+
+interface HoldingCardProps {
+  holding: Holding;
+  index: number;
+  onDelete: (id: number) => void;
+  onUpdated: () => void;
+  onError: (msg: string) => void;
+  marketData?: MarketData;
+}
+
+export function HoldingCard({ holding, index, onDelete, onUpdated, onError, marketData }: HoldingCardProps) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    name: holding.name,
+    code: holding.code,
+    cost_price: String(holding.cost_price),
+    shares: String(holding.shares),
+  });
+
+  const save = async () => {
+    try {
+      await api.patch(`/wealth/holdings/${holding.id}`, {
+        name: form.name,
+        code: form.code,
+        cost_price: parseFloat(form.cost_price) || 0,
+        shares: parseFloat(form.shares) || 0,
+      });
+      setEditing(false);
+      onUpdated();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "保存失败");
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="cute-card p-4 space-y-2 fade-in-up">
+        <input
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className="cute-input text-xs"
+          placeholder="名称"
+        />
+        <div className="grid grid-cols-3 gap-2">
+          <input
+            value={form.code}
+            onChange={(e) => setForm({ ...form, code: e.target.value })}
+            className="cute-input text-xs"
+            placeholder="代码"
+          />
+          <input
+            type="number"
+            value={form.cost_price}
+            onChange={(e) => setForm({ ...form, cost_price: e.target.value })}
+            className="cute-input text-xs"
+            placeholder="成本价"
+          />
+          <input
+            type="number"
+            value={form.shares}
+            onChange={(e) => setForm({ ...form, shares: e.target.value })}
+            className="cute-input text-xs"
+            placeholder="份额"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setEditing(false)} className="flex-1 btn-soft text-xs py-2">取消</button>
+          <button onClick={save} className="flex-1 btn-primary text-xs py-2">保存</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="cute-card p-4 fade-in-up"
+      style={{ animationDelay: `${index * 0.05}s` }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)] flex items-center justify-center text-lg">
+            {holding.asset_type === "stock" || holding.asset_type === "a_share" ? "📈" : holding.asset_type === "us_stock" ? "🇺🇸" : holding.asset_type === "crypto" ? "₿" : "📦"}
+          </div>
+          <div>
+            <p className="text-sm font-bold">{holding.name}</p>
+            <p className="text-[11px] text-[var(--color-muted-foreground)]">
+              {holding.code} · 成本 ¥{holding.cost_price} · {holding.shares} 份
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setEditing(true)}
+            className="p-2 rounded-lg hover:bg-[var(--color-muted)] transition-colors"
+          >
+            <Pencil size={14} className="text-[var(--color-muted-foreground)]" />
+          </button>
+          <button
+            onClick={() => onDelete(holding.id)}
+            className="p-2 rounded-lg hover:bg-[var(--color-muted)] transition-colors"
+          >
+            <Trash2 size={14} className="text-[var(--color-destructive)]" />
+          </button>
+        </div>
+      </div>
+
+      {/* Market Data */}
+      {marketData && marketData.current_price > 0 && (
+        <div className="mt-3 pt-3 border-t border-[var(--color-muted)] flex items-center justify-between">
+          <div>
+            <p className="text-[10px] text-[var(--color-muted-foreground)]">现价</p>
+            <p className="text-sm font-bold">¥{marketData.current_price}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-[var(--color-muted-foreground)]">市值</p>
+            <p className="text-sm font-bold">¥{marketData.market_value.toLocaleString()}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] text-[var(--color-muted-foreground)]">盈亏</p>
+            <p className={`text-sm font-bold ${marketData.profit >= 0 ? "text-red-500" : "text-green-500"}`}>
+              {marketData.profit >= 0 ? "+" : ""}¥{marketData.profit.toLocaleString()}
+            </p>
+            <p className={`text-[10px] ${marketData.profit >= 0 ? "text-red-400" : "text-green-400"}`}>
+              {marketData.profit_pct >= 0 ? "+" : ""}{marketData.profit_pct}%
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

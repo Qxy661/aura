@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(railway up *)",
+      "Bash(echo '{\"projectId\":\"26e6fc97-5d76-4516-a5a7-856e1ca643bf\",\"environmentId\":\"3dabf497-9c79-477a-9b3d-7c8bc468b169\",\"serviceId\":\"a2f978bb-2a41-48d4-9ae7-49965db4ff62\"}')",
+      "Bash(mkdir -p .railway)"
+    ]
+  }
+}

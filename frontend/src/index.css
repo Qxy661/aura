@@ -1,0 +1,206 @@
+@import "tailwindcss";
+
+@theme {
+  /* Warm yellow puppy theme */
+  --color-background: #FFF8EE;
+  --color-foreground: #4A3728;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #4A3728;
+  --color-muted: #FFF3DC;
+  --color-muted-foreground: #8B7355;
+  --color-border: #F0D9A8;
+  --color-primary: #F5A623;
+  --color-primary-foreground: #FFFFFF;
+  --color-accent: #FFE4B5;
+  --color-accent-foreground: #D4880F;
+  --color-destructive: #E85D4A;
+  --color-success: #6BBF59;
+  --color-warning: #F5C842;
+  --color-brown: #8B6914;
+  --color-cream: #FFFBF0;
+  --color-peach: #FFDAB9;
+  --color-puppy-bg: #FFF5E6;
+  --radius: 1rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: "Nunito", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* Cute card style */
+.cute-card {
+  background: var(--color-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 2px 8px rgba(139, 105, 20, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cute-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(139, 105, 20, 0.1);
+}
+
+/* Soft button */
+.btn-soft {
+  background: var(--color-muted);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-foreground);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-soft:hover {
+  background: var(--color-accent);
+  border-color: var(--color-primary);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  border: 2px solid #E09520;
+  border-radius: var(--radius);
+  color: var(--color-primary-foreground);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(245, 166, 35, 0.3);
+}
+
+.btn-primary:hover {
+  background: #E09520;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 166, 35, 0.4);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Input style */
+.cute-input {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  background: var(--color-cream);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  color: var(--color-foreground);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  font-family: inherit;
+}
+
+.cute-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.15);
+}
+
+.cute-input::placeholder {
+  color: #C4A97D;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+/* Cute paw print decoration */
+.paw-decoration::before {
+  content: "🐾";
+  position: absolute;
+  font-size: 1.5rem;
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+/* Bounce animation for puppy */
+@keyframes puppy-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.puppy-bounce {
+  animation: puppy-bounce 2s ease-in-out infinite;
+}
+
+/* Wiggle animation */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+.wiggle {
+  animation: wiggle 1s ease-in-out infinite;
+}
+
+/* Fade in */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fade-in-up 0.4s ease-out;
+}
+
+/* Tag style */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  background: var(--color-muted);
+  border: 1.5px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+}
+
+.tag-primary {
+  background: var(--color-accent);
+  border-color: var(--color-primary);
+  color: var(--color-accent-foreground);
+}
