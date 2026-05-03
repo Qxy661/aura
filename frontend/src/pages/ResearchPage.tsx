@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { FieldSelector } from "@/components/research/FieldSelector";
 import { ArticleCard } from "@/components/research/ArticleCard";
 import { PaperNetwork } from "@/components/research/PaperNetwork";
+import { ResearchSuggestions } from "@/components/research/ResearchSuggestions";
 import { RefreshCw, Bookmark, Search, Folder, Tag, Download, SlidersHorizontal, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Article {
@@ -248,6 +249,12 @@ export default function ResearchPage() {
           el?.scrollIntoView({ behavior: "smooth", block: "center" });
         }} />
       )}
+
+      {/* AI Research Suggestions */}
+      <ResearchSuggestions onGoToArticle={(id) => {
+        const el = document.getElementById(`article-${id}`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }} />
 
       {/* Folder & Tag filters */}
       {(folders && folders.length > 0) && (

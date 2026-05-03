@@ -23,43 +23,43 @@ export function PieChart({ data, size = 160, thickness = 28, centerLabel }: PieC
   if (total <= 0) return null;
 
   const r = size / 2;
-  const innerR = r - thickness;
   const circumference = 2 * Math.PI * r;
   let cumulative = 0;
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <svg width={size} height={size} className="-rotate-90">
-        {data.map((item, i) => {
-          const pct = item.value / total;
-          const offset = circumference * (1 - pct);
-          const dashOffset = -cumulative * circumference;
-          cumulative += pct;
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          {data.map((item, i) => {
+            const pct = item.value / total;
+            const offset = circumference * (1 - pct);
+            const dashOffset = -cumulative * circumference;
+            cumulative += pct;
 
-          return (
-            <circle
-              key={i}
-              cx={r}
-              cy={r}
-              r={r}
-              fill="none"
-              stroke={item.color || COLORS[i % COLORS.length]}
-              strokeWidth={thickness}
-              strokeDasharray={`${circumference - offset} ${offset}`}
-              strokeDashoffset={dashOffset}
-              strokeLinecap="butt"
-            />
-          );
-        })}
-      </svg>
-      {centerLabel && (
-        <div
-          className="absolute flex items-center justify-center"
-          style={{ width: innerR * 2, height: innerR * 2 }}
-        >
-          <span className="text-xs font-bold text-[var(--color-foreground)]">{centerLabel}</span>
-        </div>
-      )}
+            return (
+              <circle
+                key={i}
+                cx={r}
+                cy={r}
+                r={r}
+                fill="none"
+                stroke={item.color || COLORS[i % COLORS.length]}
+                strokeWidth={thickness}
+                strokeDasharray={`${circumference - offset} ${offset}`}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="butt"
+              />
+            );
+          })}
+        </svg>
+        {centerLabel && (
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <span className="text-xs font-bold text-[var(--color-foreground)] text-center leading-tight">{centerLabel}</span>
+          </div>
+        )}
+      </div>
       {/* Legend */}
       <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center">
         {data.map((item, i) => (

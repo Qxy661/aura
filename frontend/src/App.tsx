@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { WakeUpScreen } from "@/components/ui/WakeUpScreen";
 import ResearchPage from "@/pages/ResearchPage";
 import WealthPage from "@/pages/WealthPage";
 import MusePage from "@/pages/MusePage";
@@ -22,6 +23,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ErrorBoundary>
+        <WakeUpScreen />
         <div className="min-h-screen bg-[var(--color-background)] pb-20">
           {/* Decorative background paws */}
           <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">

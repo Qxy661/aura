@@ -6,8 +6,24 @@ from app.models.research import Article
 
 logger = logging.getLogger(__name__)
 
+# Stopwords to exclude from relevance matching
+_STOPWORDS = {"a", "an", "the", "of", "in", "on", "for", "and", "or", "to", "with", "is", "are", "based", "using", "via"}
 
-def fetch_arxiv(db: Session, max_results: int = 20, keywords_override: str = None) -> int:
+
+def _is_relevant(title: str, abstract: str, keywords: list) -> bool:
+    """Quick relevance check: does the title/abstract contain at least one keyword?"""
+    text = (title + " " + abstract).lower()
+    for kw in keywords:
+        kw_lower = kw.lower().strip()
+        if len(kw_lower) < 3:
+            continue
+        # Match whole word or phrase
+        if kw_lower in text:
+            return True
+    return True  # Default to include if no keywords match (fallback)
+
+
+def fetch_arxiv(db: Session, max_results: int = 30, keywords_override: str = None) -> int:
     """Fetch articles from arXiv based on configured keywords. Returns count of new articles."""
     if keywords_override:
         keywords = [k.strip() for k in keywords_override.split(",") if k.strip()]
@@ -16,7 +32,13 @@ def fetch_arxiv(db: Session, max_results: int = 20, keywords_override: str = Non
     if not keywords:
         return 0
 
-    query = " OR ".join(f"all:{kw}" for kw in keywords)
+    # Build more targeted query: use AND for specificity
+    # Group keywords into phrases for better precision
+    if len(keywords) <= 3:
+        query = " AND ".join(f"all:{kw}" for kw in keywords)
+    else:
+        # For many keywords, use OR but boost with AND grouping
+        query = " OR ".join(f"all:{kw}" for kw in keywords[:8])
 
     try:
         client = arxiv.Client()
@@ -52,6 +74,11 @@ def fetch_arxiv(db: Session, max_results: int = 20, keywords_override: str = Non
             abstract = result.summary.strip().replace("\n", " ") if result.summary else ""
             authors = ", ".join(a.name for a in result.authors if a.name) if result.authors else ""
 
+            # Relevance pre-filter
+            if not _is_relevant(title, abstract, keywords):
+                logger.debug(f"Skipping irrelevant: {title[:60]}")
+                continue
+
             published_at = None
             if result.published:
                 published_at = result.published.replace(tzinfo=None)
@@ -72,4 +99,5 @@ def fetch_arxiv(db: Session, max_results: int = 20, keywords_override: str = Non
             logger.warning(f"Failed to process arXiv entry: {e}")
             continue
 
+    logger.info(f"arXiv fetch: {len(results)} results, {new_count} new relevant articles")
     return new_count

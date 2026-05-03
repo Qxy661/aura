@@ -107,6 +107,19 @@ def _weekly_report():
         db.close()
 
 
+def _keepalive_ping():
+    """Ping self to prevent Render free tier from sleeping."""
+    import os
+    import httpx
+    port = os.environ.get("PORT", "8000")
+    try:
+        resp = httpx.get(f"http://127.0.0.1:{port}/health", timeout=10)
+        if resp.status_code == 200:
+            logger.debug("Keep-alive ping OK")
+    except Exception as e:
+        logger.debug(f"Keep-alive ping failed: {e}")
+
+
 def setup_scheduler() -> BackgroundScheduler:
     """Configure and start the background scheduler."""
     scheduler = BackgroundScheduler()
@@ -123,6 +136,9 @@ def setup_scheduler() -> BackgroundScheduler:
     # Weekly report on Monday at 9:00 AM
     scheduler.add_job(_weekly_report, "cron", day_of_week="mon", hour=9, minute=0, id="weekly_report")
 
+    # Keep-alive ping every 14 minutes (Render sleeps after 15min idle)
+    scheduler.add_job(_keepalive_ping, "interval", minutes=14, id="keepalive")
+
     scheduler.start()
-    logger.info("Scheduler started: daily_fetch@08:00, daily_quotes@07:00, daily_backup@02:00, weekly_report@Mon 09:00")
+    logger.info("Scheduler started: daily_fetch@08:00, daily_quotes@07:00, daily_backup@02:00, weekly_report@Mon 09:00, keepalive@14min")
     return scheduler

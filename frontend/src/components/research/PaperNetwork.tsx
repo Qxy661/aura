@@ -40,8 +40,6 @@ export function PaperNetwork({ onSelectArticle }: PaperNetworkProps) {
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
-  const nodesRef = useRef<NetworkNode[]>([]);
-  const animRef = useRef<number>(0);
 
   const fetchNetwork = async () => {
     setLoading(true);
@@ -71,57 +69,43 @@ export function PaperNetwork({ onSelectArticle }: PaperNetworkProps) {
     fetchNetwork();
   }, []);
 
-  // Simple force simulation
-  const simulate = useCallback(() => {
-    if (!data || !svgRef.current) return;
-
-    const W = svgRef.current.clientWidth || 360;
-    const H = 260;
-    const nodes = data.nodes.map((n) => ({
+  // Run force simulation synchronously (fast enough for ≤50 nodes)
+  const layoutNodes = useCallback((nodes: NetworkNode[], edges: NetworkEdge[], W: number, H: number) => {
+    const positioned = nodes.map((n) => ({
       ...n,
-      x: n.x ?? W * 0.2 + Math.random() * W * 0.6,
-      y: n.y ?? H * 0.2 + Math.random() * H * 0.6,
+      x: W * 0.15 + Math.random() * W * 0.7,
+      y: H * 0.15 + Math.random() * H * 0.7,
       vx: 0,
       vy: 0,
     }));
 
-    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-    nodesRef.current = nodes;
+    const nodeMap = new Map(positioned.map((n) => [n.id, n]));
+    const validEdges = edges.filter((e) => nodeMap.has(e.source) && nodeMap.has(e.target));
 
-    const edges = data.edges.filter(
-      (e) => nodeMap.has(e.source) && nodeMap.has(e.target)
-    );
-
-    let tick = 0;
-    const maxTicks = 120;
-
-    const step = () => {
-      if (tick >= maxTicks) return;
-
-      // Repulsion between nodes
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const dx = nodes[j].x! - nodes[i].x!;
-          const dy = nodes[j].y! - nodes[i].y!;
+    for (let tick = 0; tick < 80; tick++) {
+      // Repulsion
+      for (let i = 0; i < positioned.length; i++) {
+        for (let j = i + 1; j < positioned.length; j++) {
+          const dx = positioned[j].x! - positioned[i].x!;
+          const dy = positioned[j].y! - positioned[i].y!;
           const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-          const force = 800 / (dist * dist);
+          const force = 600 / (dist * dist);
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
-          nodes[i].vx! -= fx;
-          nodes[i].vy! -= fy;
-          nodes[j].vx! += fx;
-          nodes[j].vy! += fy;
+          positioned[i].vx! -= fx;
+          positioned[i].vy! -= fy;
+          positioned[j].vx! += fx;
+          positioned[j].vy! += fy;
         }
       }
-
-      // Attraction along edges
-      for (const edge of edges) {
+      // Attraction
+      for (const edge of validEdges) {
         const a = nodeMap.get(edge.source)!;
         const b = nodeMap.get(edge.target)!;
         const dx = b.x! - a.x!;
         const dy = b.y! - a.y!;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const force = (dist - 80) * 0.01 * edge.strength;
+        const force = (dist - 80) * 0.008 * edge.strength;
         const fx = (dx / Math.max(dist, 1)) * force;
         const fy = (dy / Math.max(dist, 1)) * force;
         a.vx! += fx;
@@ -129,41 +113,29 @@ export function PaperNetwork({ onSelectArticle }: PaperNetworkProps) {
         b.vx! -= fx;
         b.vy! -= fy;
       }
-
-      // Center gravity
-      for (const node of nodes) {
-        node.vx! += (W / 2 - node.x!) * 0.005;
-        node.vy! += (H / 2 - node.y!) * 0.005;
-      }
-
-      // Apply velocity with damping
-      for (const node of nodes) {
-        node.vx! *= 0.85;
-        node.vy! *= 0.85;
+      // Center gravity + damping
+      for (const node of positioned) {
+        node.vx! += (W / 2 - node.x!) * 0.004;
+        node.vy! += (H / 2 - node.y!) * 0.004;
+        node.vx! *= 0.8;
+        node.vy! *= 0.8;
         node.x! += node.vx!;
         node.y! += node.vy!;
-        // Bounds
-        node.x = Math.max(20, Math.min(W - 20, node.x!));
-        node.y = Math.max(20, Math.min(H - 20, node.y!));
+        node.x = Math.max(25, Math.min(W - 25, node.x!));
+        node.y = Math.max(25, Math.min(H - 25, node.y!));
       }
-
-      tick++;
-      nodesRef.current = [...nodes];
-      // Force re-render
-      setData((prev) => (prev ? { ...prev, nodes: [...nodes] } : prev));
-      animRef.current = requestAnimationFrame(step);
-    };
-
-    animRef.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(animRef.current);
-  }, [data]);
+    }
+    return positioned;
+  }, []);
 
   useEffect(() => {
-    if (data && data.nodes.length > 0) {
-      const cleanup = simulate();
-      return cleanup;
+    if (data && data.nodes.length > 0 && svgRef.current) {
+      const W = svgRef.current.clientWidth || 360;
+      const H = 260;
+      const positioned = layoutNodes(data.nodes, data.edges, W, H);
+      setData((prev) => prev ? { ...prev, nodes: positioned } : prev);
     }
-  }, [data?.nodes.length]);
+  }, [data?.nodes.length, layoutNodes]);
 
   if (!data || data.nodes.length === 0) {
     return (

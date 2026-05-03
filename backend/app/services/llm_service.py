@@ -456,3 +456,47 @@ def chat_with_paper(title: str, abstract: str, summary: str, full_text: str, mes
     )
 
     return response.choices[0].message.content or "抱歉，AI 未能生成回复。"
+
+
+@with_retry(max_retries=2)
+def generate_research_suggestions(articles: list, research_profile: str) -> dict:
+    """Generate research reading suggestions based on existing papers."""
+    if not articles:
+        return {"suggestions": [], "trends": "", "priority": []}
+
+    articles_text = "\n".join(
+        f"[ID:{a.id}] {a.title}\n摘要: {(a.abstract or '')[:150]}\nAI评分: {a.relevance_score}, 个人相关性: {a.user_relevance_score}"
+        for a in articles[:20]
+    )
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是一个科研导师AI。根据用户最近收集的论文和研究方向，提供科研建议。\n"
+                    f"用户研究方向：{research_profile}\n\n"
+                    "返回JSON格式：\n"
+                    '{\n'
+                    '  "suggestions": ["建议1: 具体研究方向或问题", "建议2", "建议3"],\n'
+                    '  "trends": "当前领域的主要趋势和热点（2-3句话）",\n'
+                    '  "priority": [{"id": 论文ID, "reason": "优先阅读理由"}]\n'
+                    '}\n'
+                    "要求：\n"
+                    "1. 建议要具体可执行\n"
+                    "2. 趋势要基于论文内容分析\n"
+                    "3. 优先级推荐3-5篇最值得精读的论文\n"
+                    "4. 用中文回复"
+                ),
+            },
+            {"role": "user", "content": articles_text},
+        ],
+        temperature=0.5,
+        max_tokens=4000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    text = response.choices[0].message.content or "{}"
+    result = _parse_json_response(text, {"suggestions": [], "trends": "", "priority": []})
+    return result if isinstance(result, dict) else {"suggestions": [], "trends": "", "priority": []}

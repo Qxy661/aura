@@ -415,3 +415,25 @@ def build_network(limit: int = 30, db: Session = Depends(get_db)):
         return {"relations": added}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Build network failed: {str(e)}")
+
+
+@router.get("/suggestions")
+def get_suggestions(db: Session = Depends(get_db)):
+    """Get AI research suggestions based on collected papers."""
+    from app.services.llm_service import generate_research_suggestions
+
+    active = db.query(ResearchField).filter(ResearchField.is_active == True).first()
+    profile = active.keywords if active else "AI, machine learning, deep learning"
+
+    articles = db.query(Article).filter(Article.summary != "").order_by(
+        Article.fetched_at.desc()
+    ).limit(20).all()
+
+    if not articles:
+        return {"suggestions": [], "trends": "暂无论文数据", "priority": []}
+
+    try:
+        result = generate_research_suggestions(articles, profile)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}")
