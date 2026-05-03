@@ -320,6 +320,27 @@ def get_paper_network(limit: int = 50, db: Session = Depends(get_db)):
     return {"nodes": nodes, "edges": edges}
 
 
+@router.post("/articles/{article_id}/fetch-fulltext")
+def fetch_fulltext(article_id: int, db: Session = Depends(get_db)):
+    """Download and extract full text from paper PDF."""
+    from app.services.pdf_service import fetch_and_extract_full_text
+
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    if article.full_text:
+        return {"ok": True, "chars": len(article.full_text), "cached": True}
+
+    text = fetch_and_extract_full_text(article.url)
+    if not text:
+        raise HTTPException(status_code=400, detail="无法提取全文（可能不是 arxiv 论文或 PDF 无法访问）")
+
+    article.full_text = text
+    db.commit()
+    return {"ok": True, "chars": len(text), "cached": False}
+
+
 @router.post("/articles/{article_id}/chat")
 def chat_with_article(article_id: int, body: ChatMessage, db: Session = Depends(get_db)):
     """Chat with a paper — ask questions about it."""
@@ -334,6 +355,7 @@ def chat_with_article(article_id: int, body: ChatMessage, db: Session = Depends(
             title=article.title,
             abstract=article.abstract,
             summary=article.summary,
+            full_text=article.full_text or "",
             message=body.message,
             history=body.history,
         )

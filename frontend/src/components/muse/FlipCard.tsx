@@ -4,15 +4,23 @@ interface FlipCardProps {
   front: React.ReactNode;
   back: React.ReactNode;
   className?: string;
+  onFlipToBack?: () => void;
 }
 
-export function FlipCard({ front, back, className = "" }: FlipCardProps) {
+export function FlipCard({ front, back, className = "", onFlipToBack }: FlipCardProps) {
   const [flipped, setFlipped] = useState(false);
+
+  const handleFlip = () => {
+    if (!flipped) {
+      onFlipToBack?.();
+    }
+    setFlipped(!flipped);
+  };
 
   return (
     <div
       className={`perspective-1000 cursor-pointer ${className}`}
-      onClick={() => setFlipped(!flipped)}
+      onClick={handleFlip}
     >
       <div
         className="preserve-3d relative transition-transform duration-500"

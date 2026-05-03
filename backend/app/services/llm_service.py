@@ -419,9 +419,12 @@ def find_paper_connections(articles: list) -> list:
 
 
 @with_retry(max_retries=2)
-def chat_with_paper(title: str, abstract: str, summary: str, message: str, history: list) -> str:
+def chat_with_paper(title: str, abstract: str, summary: str, full_text: str, message: str, history: list) -> str:
     """Chat with a paper — ask questions about its content."""
     context = f"论文标题: {title}\n摘要: {abstract or '无'}\nAI总结: {summary or '无'}"
+    if full_text:
+        # Truncate full text to fit context window
+        context += f"\n\n论文全文:\n{full_text[:15000]}"
 
     messages = [
         {

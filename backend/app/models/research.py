@@ -30,6 +30,7 @@ class Article(Base):
     relevance_score = Column(Float, default=0.0)  # AI 相关性打分 0-10
     user_relevance_score = Column(Float, default=0.0)  # 个人相关性评分 0-10
     paper_chat_history = Column(Text, default="")  # 论文对话历史 JSON
+    full_text = Column(Text, default="")  # PDF 全文提取
     is_saved = Column(Boolean, default=False)  # 收藏标记
     tags = Column(String(500), default="")  # 逗号分隔的标签
     folder = Column(String(200), default="")  # 文件夹分类

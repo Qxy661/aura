@@ -47,6 +47,7 @@ def init_db():
             "folder TEXT DEFAULT ''",
             "user_relevance_score REAL DEFAULT 0.0",
             "paper_chat_history TEXT DEFAULT ''",
+            "full_text TEXT DEFAULT ''",
         ]:
             try:
                 conn.execute(text(f"ALTER TABLE articles ADD COLUMN {col_def}"))

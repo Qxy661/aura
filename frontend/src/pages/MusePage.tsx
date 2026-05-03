@@ -10,7 +10,7 @@ import { FlipCard } from "@/components/muse/FlipCard";
 import { MoodRainbow } from "@/components/muse/MoodRainbow";
 import { MoodTrend } from "@/components/muse/MoodTrend";
 import { TarotSection } from "@/components/muse/TarotSection";
-import { Shuffle, PenLine, Trash2, Plus, Sparkles, Wand2 } from "lucide-react";
+import { Shuffle, PenLine, Trash2, Plus, Sparkles, Wand2, Loader2 } from "lucide-react";
 
 interface Quote {
   id: number;
@@ -67,6 +67,8 @@ export default function MusePage() {
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [quoteForm, setQuoteForm] = useState({ content: "", author: "", book_title: "" });
   const [generating, setGenerating] = useState(false);
+  const [analyzingIds, setAnalyzingIds] = useState<Set<number>>(new Set());
+  const [analysisResults, setAnalysisResults] = useState<Record<number, { ai_summary: string; ai_analysis: string }>>({});
 
   const deleteNote = async (id: number) => {
     try {
@@ -104,6 +106,26 @@ export default function MusePage() {
       refetchQuotes();
     } catch (e) {
       showError(e instanceof Error ? e.message : "添加失败");
+    }
+  };
+
+  const handleAnalyzeQuote = async (quoteId: number) => {
+    // Skip if already has data or currently analyzing
+    const q = quotes?.find((q) => q.id === quoteId);
+    if (!q || q.ai_summary || analyzingIds.has(quoteId) || analysisResults[quoteId]) return;
+
+    setAnalyzingIds((prev) => new Set(prev).add(quoteId));
+    try {
+      const result = await api.post<{ ai_summary: string; ai_analysis: string }>(`/muse/quotes/${quoteId}/analyze`);
+      setAnalysisResults((prev) => ({ ...prev, [quoteId]: result }));
+    } catch {
+      // silent
+    } finally {
+      setAnalyzingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(quoteId);
+        return next;
+      });
     }
   };
 
@@ -196,8 +218,14 @@ export default function MusePage() {
               items={quotes}
               renderItem={(item) => {
                 const q = item as Quote;
+                const extra = analysisResults[q.id];
+                const isAnalyzing = analyzingIds.has(q.id);
+                const summary = q.ai_summary || extra?.ai_summary || "";
+                const analysis = q.ai_analysis || extra?.ai_analysis || "";
+
                 return (
                   <FlipCard
+                    onFlipToBack={() => handleAnalyzeQuote(q.id)}
                     front={
                       <div className="relative p-5 rounded-2xl bg-gradient-to-br from-[var(--color-muted)] to-[var(--color-cream)] border border-[var(--color-border)] min-h-[220px]">
                         {q.book_title && (
@@ -218,17 +246,24 @@ export default function MusePage() {
                     back={
                       <div className="p-5 rounded-2xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-muted)] border border-[var(--color-border)] min-h-[220px] space-y-3">
                         <p className="text-xs font-bold text-[var(--color-accent-foreground)]">💡 AI 解读</p>
-                        {q.ai_summary ? (
-                          <p className="text-xs text-[var(--color-foreground)] leading-relaxed">{q.ai_summary}</p>
-                        ) : (
-                          <p className="text-xs text-[var(--color-muted-foreground)]">暂无解读</p>
-                        )}
-                        {q.ai_analysis && (
-                          <div className="pt-2 border-t border-[var(--color-border)]">
-                            <p className="text-xs text-[var(--color-foreground)] leading-relaxed whitespace-pre-wrap">
-                              {q.ai_analysis}
-                            </p>
+                        {isAnalyzing ? (
+                          <div className="flex items-center gap-2 py-4">
+                            <Loader2 size={14} className="animate-spin text-[var(--color-primary)]" />
+                            <span className="text-xs text-[var(--color-muted-foreground)]">AI 正在解读...</span>
                           </div>
+                        ) : summary ? (
+                          <>
+                            <p className="text-xs text-[var(--color-foreground)] leading-relaxed">{summary}</p>
+                            {analysis && (
+                              <div className="pt-2 border-t border-[var(--color-border)]">
+                                <p className="text-xs text-[var(--color-foreground)] leading-relaxed whitespace-pre-wrap">
+                                  {analysis}
+                                </p>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-xs text-[var(--color-muted-foreground)] py-4">翻转时自动加载 AI 解读</p>
                         )}
                         <button
                           onClick={(e) => {

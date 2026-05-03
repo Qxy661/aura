@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Send, Loader2 } from "lucide-react";
+import { X, Send, Loader2, FileText } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface Message {
@@ -17,6 +17,7 @@ export function PaperChat({ articleId, articleTitle, onClose }: PaperChatProps) 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fullTextStatus, setFullTextStatus] = useState<"none" | "loading" | "ready" | "error">("none");
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,6 +25,17 @@ export function PaperChat({ articleId, articleTitle, onClose }: PaperChatProps) 
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const handleFetchFullText = async () => {
+    setFullTextStatus("loading");
+    try {
+      await api.post(`/research/articles/${articleId}/fetch-fulltext`);
+      setFullTextStatus("ready");
+    } catch {
+      setFullTextStatus("error");
+      setTimeout(() => setFullTextStatus("none"), 3000);
+    }
+  };
 
   const handleSend = async () => {
     const text = input.trim();
@@ -60,12 +72,26 @@ export function PaperChat({ articleId, articleTitle, onClose }: PaperChatProps) 
               {articleTitle}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[var(--color-muted)] transition-colors"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-1">
+            {fullTextStatus === "ready" ? (
+              <span className="text-[9px] text-green-600 font-semibold px-1.5 py-1 bg-green-50 rounded-lg">全文已加载</span>
+            ) : (
+              <button
+                onClick={handleFetchFullText}
+                disabled={fullTextStatus === "loading"}
+                className="p-1.5 rounded-lg hover:bg-[var(--color-muted)] transition-colors"
+                title="获取论文全文，提升回答质量"
+              >
+                <FileText size={14} className={fullTextStatus === "loading" ? "animate-pulse text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]"} />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-muted)] transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
