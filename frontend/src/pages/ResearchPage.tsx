@@ -5,7 +5,8 @@ import { api } from "@/lib/api";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FieldSelector } from "@/components/research/FieldSelector";
 import { ArticleCard } from "@/components/research/ArticleCard";
-import { RefreshCw, Bookmark, Search, Folder, Tag, Download } from "lucide-react";
+import { PaperNetwork } from "@/components/research/PaperNetwork";
+import { RefreshCw, Bookmark, Search, Folder, Tag, Download, SlidersHorizontal, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Article {
   id: number;
@@ -17,6 +18,7 @@ interface Article {
   summary: string;
   key_points: string;
   relevance_score: number;
+  user_relevance_score: number;
   is_saved: boolean;
   tags: string;
   folder: string;
@@ -50,6 +52,9 @@ export default function ResearchPage() {
   const [folderInput, setFolderInput] = useState("");
   const [editingTags, setEditingTags] = useState<number | null>(null);
   const [tagInput, setTagInput] = useState("");
+  const [sortBy, setSortBy] = useState("fetched_at");
+  const [smartFiltering, setSmartFiltering] = useState(false);
+  const [showNetwork, setShowNetwork] = useState(false);
 
   const { data: fields } = useApi<ResearchField[]>(
     () => api.get("/research/fields")
@@ -70,13 +75,13 @@ export default function ResearchPage() {
 
   const { data, refetch } = useApi<ArticleList>(
     () => {
-      let url = `/research/articles?saved_only=${savedOnly}&limit=50`;
+      let url = `/research/articles?saved_only=${savedOnly}&limit=50&sort_by=${sortBy}`;
       if (selectedFolder) url += `&folder=${encodeURIComponent(selectedFolder)}`;
       if (selectedTag) url += `&tag=${encodeURIComponent(selectedTag)}`;
       if (searchQuery.trim()) url += `&q=${encodeURIComponent(searchQuery.trim())}`;
       return api.get(url);
     },
-    [savedOnly, selectedFolder, selectedTag, searchQuery]
+    [savedOnly, selectedFolder, selectedTag, searchQuery, sortBy]
   );
 
   const handleFieldSelect = async (fieldId: number) => {
@@ -131,6 +136,19 @@ export default function ResearchPage() {
     window.open(url, "_blank");
   };
 
+  const handleSmartFilter = async () => {
+    setSmartFiltering(true);
+    try {
+      const res = await api.post<{ evaluated: number }>("/research/articles/smart-filter");
+      await refetch();
+      showError(`AI 已评估 ${res.evaluated} 篇论文的个人相关性`);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "AI 筛选失败");
+    } finally {
+      setSmartFiltering(false);
+    }
+  };
+
   return (
     <div className="space-y-5 fade-in-up">
       <PageHeader
@@ -145,6 +163,14 @@ export default function ResearchPage() {
               title="导出 Markdown"
             >
               <Download size={13} />
+            </button>
+            <button
+              onClick={handleSmartFilter}
+              disabled={smartFiltering}
+              className="btn-soft flex items-center gap-1 text-xs"
+              title="AI 智能筛选"
+            >
+              <Sparkles size={13} className={smartFiltering ? "animate-spin" : ""} />
             </button>
             <button
               onClick={handleFetch}
@@ -164,8 +190,8 @@ export default function ResearchPage() {
         onSelect={handleFieldSelect}
       />
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 flex-wrap">
+      {/* Filter tabs + Sort */}
+      <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => setSavedOnly(false)}
           className={`tag text-xs cursor-pointer transition-all ${!savedOnly ? "tag-primary" : ""}`}
@@ -194,7 +220,34 @@ export default function ResearchPage() {
             <Tag size={10} /> {selectedTag} &times;
           </button>
         )}
+        <div className="ml-auto flex items-center gap-1">
+          <SlidersHorizontal size={12} className="text-[var(--color-muted-foreground)]" />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="text-[10px] font-semibold bg-transparent border-none outline-none text-[var(--color-muted-foreground)] cursor-pointer"
+          >
+            <option value="fetched_at">最新抓取</option>
+            <option value="relevance_score">AI 评分</option>
+            <option value="user_relevance_score">个人相关性</option>
+          </select>
+        </div>
       </div>
+
+      {/* Network toggle */}
+      <button
+        onClick={() => setShowNetwork(!showNetwork)}
+        className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-accent-foreground)] hover:text-[var(--color-foreground)] transition-colors"
+      >
+        🔗 论文关系图
+        {showNetwork ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {showNetwork && (
+        <PaperNetwork onSelectArticle={(id) => {
+          const el = document.getElementById(`article-${id}`);
+          el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }} />
+      )}
 
       {/* Folder & Tag filters */}
       {(folders && folders.length > 0) && (
@@ -257,7 +310,7 @@ export default function ResearchPage() {
       ) : (
         <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
           {articles.map((article, i) => (
-            <div key={article.id} className="relative">
+            <div key={article.id} id={`article-${article.id}`} className="relative">
               <ArticleCard
                 article={article}
                 index={i}

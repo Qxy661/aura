@@ -13,6 +13,7 @@ class ArticleOut(BaseModel):
     summary: str
     key_points: str
     relevance_score: float
+    user_relevance_score: float
     is_saved: bool
     tags: str
     folder: str

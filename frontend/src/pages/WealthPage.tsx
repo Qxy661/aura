@@ -9,7 +9,10 @@ import { HoldingForm } from "@/components/wealth/HoldingForm";
 import { OcrUploader } from "@/components/wealth/OcrUploader";
 import { InsightPanel } from "@/components/wealth/InsightPanel";
 import { ReportPanel } from "@/components/wealth/ReportPanel";
-import { Plus, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { PieChart } from "@/components/charts/PieChart";
+import { HeatMap } from "@/components/charts/HeatMap";
+import { NumberRoller } from "@/components/wealth/NumberRoller";
+import { Plus, TrendingUp, TrendingDown, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { MiniBarChart } from "@/components/charts/MiniBarChart";
 
 interface Holding {
@@ -55,6 +58,20 @@ interface Report {
   created_at: string;
 }
 
+interface AllocationItem {
+  id: number;
+  name: string;
+  code: string;
+  asset_type: string;
+  market_value: number;
+  pct: number;
+}
+
+interface Allocation {
+  items: AllocationItem[];
+  total: number;
+}
+
 export default function WealthPage() {
   const { showError, ToastContainer } = useToast();
   const { data: holdings, refetch: refetchHoldings } = useApi<Holding[]>(
@@ -70,10 +87,14 @@ export default function WealthPage() {
   const { data: portfolio, refetch: refetchPortfolio, loading: portfolioLoading } = useApi<Portfolio>(
     () => api.get("/wealth/portfolio")
   );
+  const { data: allocation } = useApi<Allocation>(
+    () => api.get("/wealth/allocation")
+  );
 
   const [showAdd, setShowAdd] = useState(false);
   const [activeTab, setActiveTab] = useState<"holdings" | "insights" | "reports">("holdings");
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [showCharts, setShowCharts] = useState(true);
 
   const deleteHolding = async (id: number) => {
     try {
@@ -133,11 +154,11 @@ export default function WealthPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl bg-[var(--color-muted)]">
                   <p className="text-[10px] text-[var(--color-muted-foreground)]">总市值</p>
-                  <p className="text-sm font-extrabold">¥{portfolio.total_market.toLocaleString()}</p>
+                  <NumberRoller value={portfolio.total_market} prefix="¥" decimals={0} className="text-sm" />
                 </div>
                 <div className="p-3 rounded-xl bg-[var(--color-muted)]">
                   <p className="text-[10px] text-[var(--color-muted-foreground)]">总成本</p>
-                  <p className="text-sm font-extrabold">¥{portfolio.total_cost.toLocaleString()}</p>
+                  <NumberRoller value={portfolio.total_cost} prefix="¥" decimals={0} className="text-sm" />
                 </div>
               </div>
 
@@ -149,28 +170,76 @@ export default function WealthPage() {
                     <TrendingDown size={16} className="text-green-500" />
                   )}
                   <div>
-                    <p className={`text-lg font-extrabold ${portfolio.total_profit >= 0 ? "text-red-500" : "text-green-500"}`}>
-                      {portfolio.total_profit >= 0 ? "+" : ""}¥{portfolio.total_profit.toLocaleString()}
-                    </p>
-                    <p className={`text-xs ${portfolio.total_profit >= 0 ? "text-red-400" : "text-green-400"}`}>
-                      {portfolio.total_profit_pct >= 0 ? "+" : ""}{portfolio.total_profit_pct}%
-                    </p>
+                    <NumberRoller
+                      value={portfolio.total_profit}
+                      prefix={portfolio.total_profit >= 0 ? "+¥" : "-¥"}
+                      decimals={0}
+                      className="text-lg"
+                      colorize
+                    />
+                    <NumberRoller
+                      value={portfolio.total_profit_pct}
+                      prefix={portfolio.total_profit_pct >= 0 ? "+" : ""}
+                      suffix="%"
+                      decimals={2}
+                      className="text-xs"
+                      colorize
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Per-holding P&L chart */}
-              <div>
-                <p className="text-[10px] text-[var(--color-muted-foreground)] mb-2">各持仓盈亏</p>
-                <MiniBarChart
-                  data={portfolio.holdings.map((h) => ({
-                    label: h.name.slice(0, 4),
-                    value: h.profit_pct,
-                    color: h.profit >= 0 ? "#E85D4A" : "#6BBF59",
-                  }))}
-                  height={100}
-                />
-              </div>
+              {/* Charts toggle */}
+              <button
+                onClick={() => setShowCharts(!showCharts)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-[var(--color-accent-foreground)]"
+              >
+                📈 可视化图表 {showCharts ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+
+              {showCharts && (
+                <div className="space-y-4">
+                  {/* Pie chart: allocation */}
+                  {allocation && allocation.items.length > 0 && (
+                    <div>
+                      <p className="text-[10px] text-[var(--color-muted-foreground)] mb-2">持仓占比</p>
+                      <div className="flex justify-center">
+                        <PieChart
+                          data={allocation.items.map((item) => ({
+                            name: item.name.slice(0, 6),
+                            value: item.market_value,
+                          }))}
+                          centerLabel={`¥${allocation.total.toLocaleString()}`}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* HeatMap: P&L */}
+                  <div>
+                    <p className="text-[10px] text-[var(--color-muted-foreground)] mb-2">盈亏热力图</p>
+                    <HeatMap
+                      data={portfolio.holdings.map((h) => ({
+                        label: h.name.slice(0, 4),
+                        value: h.profit_pct,
+                      }))}
+                    />
+                  </div>
+
+                  {/* Per-holding P&L bar chart */}
+                  <div>
+                    <p className="text-[10px] text-[var(--color-muted-foreground)] mb-2">各持仓盈亏</p>
+                    <MiniBarChart
+                      data={portfolio.holdings.map((h) => ({
+                        label: h.name.slice(0, 4),
+                        value: h.profit_pct,
+                        color: h.profit >= 0 ? "#E85D4A" : "#6BBF59",
+                      }))}
+                      height={100}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

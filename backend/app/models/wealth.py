@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Text, DateTime
+from sqlalchemy import Column, Integer, String, Float, Text, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -14,6 +14,15 @@ class Holding(Base):
     shares = Column(Float, nullable=False)  # 份额
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class PriceHistory(Base):
+    __tablename__ = "price_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    holding_id = Column(Integer, ForeignKey("holdings.id"), nullable=False)
+    price = Column(Float, nullable=False)
+    recorded_at = Column(DateTime, server_default=func.now())
 
 
 class Insight(Base):

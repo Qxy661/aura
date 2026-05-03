@@ -7,39 +7,63 @@ import httpx
 from functools import wraps
 from typing import Union
 from openai import OpenAI
-from app.config import get_settings
+from app.config import get_effective_llm_config
 
 logger = logging.getLogger(__name__)
 
-_client = None
+_client_cache = {}  # key: (api_key, base_url) -> OpenAI
 
 
-def get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        settings = get_settings()
-        # Aggressively bypass any system proxy
-        os.environ.pop("HTTP_PROXY", None)
-        os.environ.pop("HTTPS_PROXY", None)
-        os.environ.pop("http_proxy", None)
-        os.environ.pop("https_proxy", None)
-        os.environ.pop("ALL_PROXY", None)
-        os.environ.pop("all_proxy", None)
-        os.environ["NO_PROXY"] = "*"
+def _bypass_proxy():
+    """Aggressively bypass any system proxy."""
+    for var in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"):
+        os.environ.pop(var, None)
+    os.environ["NO_PROXY"] = "*"
 
-        http_client = httpx.Client(
-            proxy=None,
-            verify=False,
-            follow_redirects=True,
-            timeout=120.0,
-        )
-        _client = OpenAI(
-            api_key=settings.llm_api_key or "not-set",
-            base_url=settings.llm_base_url,
+
+def get_client(api_key: str = None, base_url: str = None) -> OpenAI:
+    """Get or create an OpenAI client, cached by (api_key, base_url)."""
+    cfg = get_effective_llm_config()
+    key = api_key or cfg["api_key"]
+    url = base_url or cfg["base_url"]
+    cache_key = (key, url)
+
+    if cache_key not in _client_cache:
+        _bypass_proxy()
+        http_client = httpx.Client(proxy=None, verify=False, follow_redirects=True, timeout=120.0)
+        _client_cache[cache_key] = OpenAI(
+            api_key=key or "not-set",
+            base_url=url,
             timeout=120.0,
             http_client=http_client,
         )
-    return _client
+    return _client_cache[cache_key]
+
+
+def test_llm_connection(api_key: str = None, base_url: str = None, model: str = None) -> dict:
+    """Test LLM connection and return status + latency."""
+    cfg = get_effective_llm_config()
+    key = api_key or cfg["api_key"]
+    url = base_url or cfg["base_url"]
+    mdl = model or cfg["model"]
+
+    if not key or key == "not-set":
+        return {"ok": False, "error": "API Key 未设置", "latency_ms": 0}
+
+    start = time.time()
+    try:
+        client = get_client(api_key=key, base_url=url)
+        resp = client.chat.completions.create(
+            model=mdl,
+            messages=[{"role": "user", "content": "Hi"}],
+            max_tokens=5,
+        )
+        latency = int((time.time() - start) * 1000)
+        content = resp.choices[0].message.content or ""
+        return {"ok": True, "latency_ms": latency, "model": mdl, "sample": content[:50]}
+    except Exception as e:
+        latency = int((time.time() - start) * 1000)
+        return {"ok": False, "error": str(e)[:200], "latency_ms": latency}
 
 
 def with_retry(max_retries: int = 3, base_delay: float = 1.0):
@@ -81,7 +105,7 @@ def summarize_text(text: str) -> dict:
         return {"summary": "内容为空", "key_points": "", "relevance_score": 0.0}
 
     response = get_client().chat.completions.create(
-        model=get_settings().llm_model,
+        model=get_effective_llm_config()["model"],
         messages=[
             {
                 "role": "system",
@@ -119,7 +143,7 @@ def generate_investment_report(holdings: list, insights: list) -> str:
     ) or "本周暂无收集的观点。"
 
     response = get_client().chat.completions.create(
-        model=get_settings().llm_model,
+        model=get_effective_llm_config()["model"],
         messages=[
             {
                 "role": "system",
@@ -152,7 +176,7 @@ def generate_investment_report(holdings: list, insights: list) -> str:
 def analyze_quote(content: str, author: str, book_title: str) -> dict:
     """Generate AI summary and analysis for a book excerpt."""
     response = get_client().chat.completions.create(
-        model=get_settings().llm_model,
+        model=get_effective_llm_config()["model"],
         messages=[
             {
                 "role": "system",
@@ -187,7 +211,7 @@ def analyze_quote(content: str, author: str, book_title: str) -> dict:
 def generate_quotes(count: int = 3) -> list:
     """Use LLM to generate new book quotes/inspirational excerpts."""
     response = get_client().chat.completions.create(
-        model=get_settings().llm_model,
+        model=get_effective_llm_config()["model"],
         messages=[
             {
                 "role": "system",
@@ -236,7 +260,7 @@ def generate_mood_advice(mood: str, recent_moods: list) -> str:
     history_text = "、".join(mood_map.get(m, m) for m in recent_moods[-7:]) if recent_moods else "暂无记录"
 
     response = get_client().chat.completions.create(
-        model=get_settings().llm_model,
+        model=get_effective_llm_config()["model"],
         messages=[
             {
                 "role": "system",
@@ -269,7 +293,7 @@ def extract_holdings_from_image(image_bytes: bytes, media_type: str) -> list:
     b64_image = base64.b64encode(image_bytes).decode("utf-8")
 
     response = get_client().chat.completions.create(
-        model=get_settings().llm_model,
+        model=get_effective_llm_config()["model"],
         messages=[
             {
                 "role": "system",
@@ -318,3 +342,114 @@ def extract_holdings_from_image(image_bytes: bytes, media_type: str) -> list:
     if isinstance(result, dict) and result.get("name"):
         return [result]
     return []
+
+
+@with_retry(max_retries=2)
+def evaluate_user_relevance(articles: list, research_profile: str) -> list:
+    """Batch evaluate articles for personal relevance. Returns list of {id, score, reason}."""
+    if not articles:
+        return []
+
+    articles_text = "\n".join(
+        f"[ID:{a.id}] {a.title}\n摘要: {(a.abstract or '')[:200]}"
+        for a in articles[:10]
+    )
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是一个科研论文推荐助手。根据用户的研究方向，评估每篇论文的个人相关性。\n"
+                    f"用户研究方向：{research_profile}\n\n"
+                    "返回JSON数组：\n"
+                    '[{"id": 论文ID, "score": 0-10的相关性评分, "reason": "一句话理由"}]\n'
+                    "评分标准：\n"
+                    "0-3: 不太相关\n4-6: 有一定关联\n7-8: 高度相关\n9-10: 核心研究方向\n"
+                    "只返回JSON数组。"
+                ),
+            },
+            {"role": "user", "content": articles_text},
+        ],
+        temperature=0.3,
+        max_tokens=4000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    text = response.choices[0].message.content or "[]"
+    result = _parse_json_response(text, [])
+    return result if isinstance(result, list) else []
+
+
+@with_retry(max_retries=2)
+def find_paper_connections(articles: list) -> list:
+    """Find connections between papers. Returns list of {source_id, target_id, type, strength}."""
+    if len(articles) < 2:
+        return []
+
+    articles_text = "\n".join(
+        f"[ID:{a.id}] {a.title}\n作者: {a.authors}\n关键词: {a.key_points or a.tags}"
+        for a in articles[:30]
+    )
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "分析以下论文之间的关联关系。找出有共同作者、相似主题或方法论关联的论文对。\n"
+                    "返回JSON数组：\n"
+                    '[{"source_id": ID1, "target_id": ID2, "type": "author|keyword|topic", "strength": 0.0-1.0}]\n'
+                    "strength 说明：0.3-0.5 弱关联，0.5-0.7 中等关联，0.7-1.0 强关联\n"
+                    "最多返回20个关联。只返回JSON数组。"
+                ),
+            },
+            {"role": "user", "content": articles_text},
+        ],
+        temperature=0.3,
+        max_tokens=4000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    text = response.choices[0].message.content or "[]"
+    result = _parse_json_response(text, [])
+    return result if isinstance(result, list) else []
+
+
+@with_retry(max_retries=2)
+def chat_with_paper(title: str, abstract: str, summary: str, message: str, history: list) -> str:
+    """Chat with a paper — ask questions about its content."""
+    context = f"论文标题: {title}\n摘要: {abstract or '无'}\nAI总结: {summary or '无'}"
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "你是一个科研论文解读助手。用户正在阅读一篇论文，你可以基于论文的标题、摘要和AI总结来回答问题。\n"
+                "要求：\n"
+                "1. 基于已有信息回答，如果信息不足请如实说明\n"
+                "2. 可以解释概念、分析方法、讨论意义\n"
+                "3. 可以建议用户进一步阅读的方向\n"
+                "4. 用中文回复，简洁专业"
+            ),
+        },
+        {"role": "user", "content": context},
+    ]
+
+    # Add conversation history
+    for msg in history[-10:]:
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+
+    messages.append({"role": "user", "content": message})
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=messages,
+        temperature=0.5,
+        max_tokens=4000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    return response.choices[0].message.content or "抱歉，AI 未能生成回复。"

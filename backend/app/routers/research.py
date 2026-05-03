@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, Query, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
+from pydantic import BaseModel
 from app.database import get_db, SessionLocal
-from app.models.research import Article, ResearchField
+from app.models.research import Article, ResearchField, PaperRelation
 from app.schemas.research import (
     ArticleOut, ArticleUpdate, ArticleListOut,
     ResearchFieldOut, ResearchFieldUpdate,
@@ -45,6 +46,8 @@ def list_articles(
     tag: Optional[str] = None,
     q: Optional[str] = None,
     min_score: float = 0.0,
+    min_user_score: float = 0.0,
+    sort_by: str = "fetched_at",
     skip: int = 0,
     limit: int = Query(default=20, le=100),
     db: Session = Depends(get_db),
@@ -64,8 +67,19 @@ def list_articles(
         )
     if min_score > 0:
         query = query.filter(Article.relevance_score >= min_score)
+    if min_user_score > 0:
+        query = query.filter(Article.user_relevance_score >= min_user_score)
     total = query.count()
-    articles = query.order_by(Article.fetched_at.desc()).offset(skip).limit(limit).all()
+
+    # Sorting
+    if sort_by == "relevance_score":
+        order = Article.relevance_score.desc()
+    elif sort_by == "user_relevance_score":
+        order = Article.user_relevance_score.desc()
+    else:
+        order = Article.fetched_at.desc()
+
+    articles = query.order_by(order).offset(skip).limit(limit).all()
     return ArticleListOut(articles=articles, total=total)
 
 
@@ -230,3 +244,152 @@ def batch_summarize(limit: int = 10, db: Session = Depends(get_db)):
             db.rollback()
             errors += 1
     return {"summarized": summarized, "errors": errors, "remaining": db.query(Article).filter(Article.summary == "").count()}
+
+
+class ChatMessage(BaseModel):
+    message: str
+    history: list = []
+
+
+@router.post("/articles/smart-filter")
+def smart_filter(limit: int = 30, db: Session = Depends(get_db)):
+    """Evaluate user relevance for articles that haven't been scored yet."""
+    from app.services.llm_service import evaluate_user_relevance
+
+    # Get active research field as user profile
+    active = db.query(ResearchField).filter(ResearchField.is_active == True).first()
+    profile = active.keywords if active else "AI, machine learning, deep learning"
+
+    articles = db.query(Article).filter(
+        Article.user_relevance_score == 0.0,
+        Article.summary != "",
+    ).limit(limit).all()
+
+    if not articles:
+        return {"evaluated": 0, "message": "没有需要评估的文章"}
+
+    try:
+        results = evaluate_user_relevance(articles, profile)
+        updated = 0
+        for item in results:
+            aid = item.get("id")
+            score = item.get("score", 0)
+            if aid:
+                art = db.query(Article).filter(Article.id == aid).first()
+                if art:
+                    art.user_relevance_score = float(score)
+                    updated += 1
+        db.commit()
+        return {"evaluated": updated, "total_scored": len(results)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Smart filter failed: {str(e)}")
+
+
+@router.get("/network")
+def get_paper_network(limit: int = 50, db: Session = Depends(get_db)):
+    """Return paper relationship graph data (nodes + edges)."""
+    articles = db.query(Article).filter(Article.summary != "").order_by(
+        Article.user_relevance_score.desc()
+    ).limit(limit).all()
+
+    nodes = [
+        {
+            "id": a.id,
+            "title": a.title[:60],
+            "score": a.relevance_score,
+            "user_score": a.user_relevance_score,
+            "source": a.source,
+        }
+        for a in articles
+    ]
+
+    relations = db.query(PaperRelation).filter(
+        PaperRelation.source_id.in_([a.id for a in articles]),
+    ).all()
+
+    edges = [
+        {
+            "source": r.source_id,
+            "target": r.target_id,
+            "type": r.relation_type,
+            "strength": r.strength,
+        }
+        for r in relations
+    ]
+
+    return {"nodes": nodes, "edges": edges}
+
+
+@router.post("/articles/{article_id}/chat")
+def chat_with_article(article_id: int, body: ChatMessage, db: Session = Depends(get_db)):
+    """Chat with a paper — ask questions about it."""
+    from app.services.llm_service import chat_with_paper
+
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    try:
+        reply = chat_with_paper(
+            title=article.title,
+            abstract=article.abstract,
+            summary=article.summary,
+            message=body.message,
+            history=body.history,
+        )
+
+        # Save chat history
+        import json
+        history = []
+        if article.paper_chat_history:
+            try:
+                history = json.loads(article.paper_chat_history)
+            except Exception:
+                pass
+        history.append({"role": "user", "content": body.message})
+        history.append({"role": "assistant", "content": reply})
+        article.paper_chat_history = json.dumps(history[-20:])  # keep last 20 messages
+        db.commit()
+
+        return {"reply": reply}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+
+@router.post("/network/build")
+def build_network(limit: int = 30, db: Session = Depends(get_db)):
+    """Build paper relationships using AI analysis."""
+    from app.services.llm_service import find_paper_connections
+
+    articles = db.query(Article).filter(Article.summary != "").order_by(
+        Article.fetched_at.desc()
+    ).limit(limit).all()
+
+    if len(articles) < 2:
+        return {"relations": 0, "message": "Not enough articles"}
+
+    try:
+        connections = find_paper_connections(articles)
+        # Clear old relations for these articles
+        article_ids = [a.id for a in articles]
+        db.query(PaperRelation).filter(
+            PaperRelation.source_id.in_(article_ids)
+        ).delete(synchronize_session=False)
+
+        added = 0
+        for conn in connections:
+            sid = conn.get("source_id")
+            tid = conn.get("target_id")
+            if sid and tid and sid != tid:
+                rel = PaperRelation(
+                    source_id=sid,
+                    target_id=tid,
+                    relation_type=conn.get("type", "topic"),
+                    strength=float(conn.get("strength", 0.5)),
+                )
+                db.add(rel)
+                added += 1
+        db.commit()
+        return {"relations": added}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Build network failed: {str(e)}")

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime, timedelta
 from app.database import get_db
-from app.models.wealth import Holding, Insight, WeeklyReport
+from app.models.wealth import Holding, Insight, WeeklyReport, PriceHistory
 from app.schemas.wealth import (
     HoldingCreate, HoldingUpdate, HoldingOut,
     InsightCreate, InsightOut,
@@ -153,6 +154,22 @@ def get_portfolio(db: Session = Depends(get_db)):
     total_profit = total_market - total_cost
     total_profit_pct = (total_profit / total_cost * 100) if total_cost > 0 else 0
 
+    # Record price snapshots (once per day per holding)
+    from datetime import date
+    today = date.today().isoformat()
+    for h, r in zip(holdings, results):
+        if r["current_price"] > 0:
+            existing = db.query(PriceHistory).filter(
+                PriceHistory.holding_id == h.id,
+                func.date(PriceHistory.recorded_at) == today,
+            ).first()
+            if not existing:
+                db.add(PriceHistory(holding_id=h.id, price=r["current_price"]))
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
     return {
         "holdings": results,
         "total_cost": round(total_cost, 2),
@@ -218,3 +235,58 @@ async def ocr_holdings(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"OCR 识别失败: {str(e)}")
 
     return {"holdings": holdings_data}
+
+
+# --- Price History ---
+@router.get("/holdings/{holding_id}/history")
+def get_price_history(holding_id: int, days: int = 30, db: Session = Depends(get_db)):
+    """Get price history for a holding."""
+    holding = db.query(Holding).filter(Holding.id == holding_id).first()
+    if not holding:
+        raise HTTPException(status_code=404, detail="Holding not found")
+
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    history = db.query(PriceHistory).filter(
+        PriceHistory.holding_id == holding_id,
+        PriceHistory.recorded_at >= cutoff,
+    ).order_by(PriceHistory.recorded_at).all()
+
+    return {
+        "holding_id": holding_id,
+        "cost_price": holding.cost_price,
+        "history": [
+            {"price": h.price, "recorded_at": h.recorded_at.isoformat()}
+            for h in history
+        ],
+    }
+
+
+@router.get("/allocation")
+def get_allocation(db: Session = Depends(get_db)):
+    """Get portfolio allocation data for pie chart."""
+    from app.services.market_service import fetch_holding_price
+
+    holdings = db.query(Holding).all()
+    if not holdings:
+        return {"items": []}
+
+    items = []
+    for h in holdings:
+        market = fetch_holding_price(h.code, h.asset_type)
+        current_price = market.get("current_price", 0) if market else 0
+        market_value = current_price * h.shares if current_price > 0 else h.cost_price * h.shares
+        items.append({
+            "id": h.id,
+            "name": h.name,
+            "code": h.code,
+            "asset_type": h.asset_type,
+            "market_value": round(market_value, 2),
+        })
+
+    total = sum(i["market_value"] for i in items)
+    for item in items:
+        item["pct"] = round(item["market_value"] / total * 100, 1) if total > 0 else 0
+
+    items.sort(key=lambda x: x["market_value"], reverse=True)
+    return {"items": items, "total": round(total, 2)}

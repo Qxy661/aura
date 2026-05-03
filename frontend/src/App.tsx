@@ -4,6 +4,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import ResearchPage from "@/pages/ResearchPage";
 import WealthPage from "@/pages/WealthPage";
 import MusePage from "@/pages/MusePage";
+import SettingsPage from "@/pages/SettingsPage";
 import { PuppyMascot } from "@/components/ui/PuppyMascot";
 
 function NotFound() {
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="/" element={<ResearchPage />} />
               <Route path="/wealth" element={<WealthPage />} />
               <Route path="/muse" element={<MusePage />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="/404" element={<NotFound />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>

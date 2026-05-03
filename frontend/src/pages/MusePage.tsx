@@ -5,7 +5,8 @@ import { api } from "@/lib/api";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PuppyMascot } from "@/components/ui/PuppyMascot";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { QuoteCard } from "@/components/muse/QuoteCard";
+import { SwipeableCards } from "@/components/muse/SwipeableCards";
+import { FlipCard } from "@/components/muse/FlipCard";
 import { MoodRainbow } from "@/components/muse/MoodRainbow";
 import { MoodTrend } from "@/components/muse/MoodTrend";
 import { TarotSection } from "@/components/muse/TarotSection";
@@ -190,18 +191,62 @@ export default function MusePage() {
         )}
 
         <div className="space-y-3">
-          {(quotes ?? []).map((q, i) => (
-            <QuoteCard
-              key={q.id}
-              quote={q}
-              index={i}
-              onWriteReflection={(id) => {
-                setRelatedQuoteId(id);
-                setShowNoteInput(true);
+          {quotes && quotes.length > 0 ? (
+            <SwipeableCards
+              items={quotes}
+              renderItem={(item) => {
+                const q = item as Quote;
+                return (
+                  <FlipCard
+                    front={
+                      <div className="relative p-5 rounded-2xl bg-gradient-to-br from-[var(--color-muted)] to-[var(--color-cream)] border border-[var(--color-border)] min-h-[220px]">
+                        {q.book_title && (
+                          <span className="tag text-[10px] mb-2 inline-flex">📖 {q.book_title}</span>
+                        )}
+                        <div className="absolute top-3 left-4 text-4xl opacity-10 select-none">"</div>
+                        <p className="text-sm leading-relaxed pl-4 italic text-[var(--color-foreground)] mt-4">
+                          {q.content}
+                        </p>
+                        <p className="text-[11px] text-[var(--color-muted-foreground)] font-semibold mt-3 pl-4">
+                          — {q.author || "佚名"}
+                        </p>
+                        <p className="text-[9px] text-[var(--color-muted-foreground)] text-center mt-4 opacity-60">
+                          点击翻转查看 AI 解读 →
+                        </p>
+                      </div>
+                    }
+                    back={
+                      <div className="p-5 rounded-2xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-muted)] border border-[var(--color-border)] min-h-[220px] space-y-3">
+                        <p className="text-xs font-bold text-[var(--color-accent-foreground)]">💡 AI 解读</p>
+                        {q.ai_summary ? (
+                          <p className="text-xs text-[var(--color-foreground)] leading-relaxed">{q.ai_summary}</p>
+                        ) : (
+                          <p className="text-xs text-[var(--color-muted-foreground)]">暂无解读</p>
+                        )}
+                        {q.ai_analysis && (
+                          <div className="pt-2 border-t border-[var(--color-border)]">
+                            <p className="text-xs text-[var(--color-foreground)] leading-relaxed whitespace-pre-wrap">
+                              {q.ai_analysis}
+                            </p>
+                          </div>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRelatedQuoteId(q.id);
+                            setShowNoteInput(true);
+                          }}
+                          className="btn-soft text-[10px] px-3 py-1.5 mt-2"
+                        >
+                          ✏️ 写感想
+                        </button>
+                      </div>
+                    }
+                  />
+                );
               }}
             />
-          ))}
-          {(!quotes || quotes.length === 0) && (
+          ) : (
             <div className="text-center py-6">
               <div className="text-3xl puppy-bounce inline-block">📖</div>
               <p className="text-xs text-[var(--color-muted-foreground)] mt-2">加载书摘中...</p>

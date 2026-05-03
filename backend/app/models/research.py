@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -28,9 +28,21 @@ class Article(Base):
     summary = Column(Text, default="")  # AI 一句话总结
     key_points = Column(Text, default="")  # AI 核心贡献点 (JSON array string)
     relevance_score = Column(Float, default=0.0)  # AI 相关性打分 0-10
+    user_relevance_score = Column(Float, default=0.0)  # 个人相关性评分 0-10
+    paper_chat_history = Column(Text, default="")  # 论文对话历史 JSON
     is_saved = Column(Boolean, default=False)  # 收藏标记
     tags = Column(String(500), default="")  # 逗号分隔的标签
     folder = Column(String(200), default="")  # 文件夹分类
     notes = Column(Text, default="")  # 用户 Markdown 笔记
     published_at = Column(DateTime, nullable=True)
     fetched_at = Column(DateTime, server_default=func.now())
+
+
+class PaperRelation(Base):
+    __tablename__ = "paper_relations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_id = Column(Integer, ForeignKey("articles.id"), nullable=False)
+    target_id = Column(Integer, ForeignKey("articles.id"), nullable=False)
+    relation_type = Column(String(50), default="keyword")  # keyword / author / topic
+    strength = Column(Float, default=0.0)  # 0.0 - 1.0

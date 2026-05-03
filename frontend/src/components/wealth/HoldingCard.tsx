@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api";
+import { TrendLine } from "@/components/charts/TrendLine";
 
 interface Holding {
   id: number;
@@ -29,14 +30,29 @@ interface HoldingCardProps {
   marketData?: MarketData;
 }
 
+interface PriceHistoryData {
+  cost_price: number;
+  history: { price: number; recorded_at: string }[];
+}
+
 export function HoldingCard({ holding, index, onDelete, onUpdated, onError, marketData }: HoldingCardProps) {
   const [editing, setEditing] = useState(false);
+  const [showTrend, setShowTrend] = useState(false);
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryData | null>(null);
   const [form, setForm] = useState({
     name: holding.name,
     code: holding.code,
     cost_price: String(holding.cost_price),
     shares: String(holding.shares),
   });
+
+  useEffect(() => {
+    if (showTrend && !priceHistory) {
+      api.get<PriceHistoryData>(`/wealth/holdings/${holding.id}/history?days=30`)
+        .then(setPriceHistory)
+        .catch(() => {});
+    }
+  }, [showTrend, holding.id, priceHistory]);
 
   const save = async () => {
     try {
@@ -146,6 +162,32 @@ export function HoldingCard({ holding, index, onDelete, onUpdated, onError, mark
             </p>
           </div>
         </div>
+      )}
+
+      {/* Trend toggle */}
+      <button
+        onClick={() => setShowTrend(!showTrend)}
+        className="flex items-center gap-1 text-[10px] text-[var(--color-accent-foreground)] mt-2 font-semibold"
+      >
+        📈 走势 {showTrend ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+      </button>
+      {showTrend && priceHistory && priceHistory.history.length > 1 && (
+        <div className="mt-1">
+          <TrendLine
+            data={priceHistory.history.map((h) => ({
+              price: h.price,
+              date: h.recorded_at,
+            }))}
+            costPrice={priceHistory.cost_price}
+            width={280}
+            height={60}
+          />
+        </div>
+      )}
+      {showTrend && priceHistory && priceHistory.history.length <= 1 && (
+        <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">
+          数据不足，需要更多天数的记录
+        </p>
       )}
     </div>
   );

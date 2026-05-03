@@ -52,7 +52,7 @@ body {
 
 .cute-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(139, 105, 20, 0.1);
+  box-shadow: 0 6px 20px rgba(139, 105, 20, 0.12);
 }
 
 /* Soft button */
@@ -203,4 +203,69 @@ body {
   background: var(--color-accent);
   border-color: var(--color-primary);
   color: var(--color-accent-foreground);
+}
+
+/* --- Design System Additions --- */
+
+/* Number roll animation for digit transitions */
+@keyframes number-roll {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.number-roll {
+  animation: number-roll 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 3D flip animation */
+@keyframes flip-to-back {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(180deg); }
+}
+
+@keyframes flip-to-front {
+  from { transform: rotateY(180deg); }
+  to { transform: rotateY(0deg); }
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+/* Score bar styles */
+.score-bar-track {
+  height: 6px;
+  background: var(--color-muted);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .number-roll,
+  .puppy-bounce,
+  .wiggle,
+  .fade-in-up {
+    animation: none !important;
+  }
+  .cute-card {
+    transition: none !important;
+  }
+  .score-bar-fill {
+    transition: none !important;
+  }
 }
