@@ -191,3 +191,62 @@ def get_today_brief(db: Session = Depends(get_db)):
         "article_count": brief.article_count,
         "cached": False,
     }
+
+
+# --- Daily Review ---
+
+@router.post("/daily-review")
+def generate_daily_review_endpoint(db: Session = Depends(get_db)):
+    """Generate cross-module daily review: papers + holdings + notes + todos."""
+    from app.models.research import Article
+    from app.models.wealth import Holding
+    from app.models.muse import Note
+    from app.services.llm_service import generate_daily_review
+    from datetime import datetime, timedelta
+
+    today = datetime.combine(date.today(), datetime.min.time())
+
+    articles = (
+        db.query(Article)
+        .filter(Article.fetched_at >= today)
+        .order_by(Article.relevance_score.desc())
+        .limit(5)
+        .all()
+    )
+    article_data = [{"title": a.title} for a in articles]
+
+    holdings = db.query(Holding).all()
+    holding_data = [
+        {"name": h.name, "code": h.code, "cost_price": h.cost_price, "shares": h.shares}
+        for h in holdings
+    ]
+
+    notes = (
+        db.query(Note)
+        .filter(Note.created_at >= today)
+        .order_by(Note.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    note_data = [{"content": n.content, "mood": n.mood or ""} for n in notes]
+
+    todos = (
+        db.query(SmartTodo)
+        .order_by(SmartTodo.is_done.asc(), SmartTodo.parsed_priority.asc())
+        .limit(10)
+        .all()
+    )
+    todo_data = [
+        {
+            "content": t.content,
+            "parsed_title": t.parsed_title or t.content,
+            "is_done": t.is_done,
+        }
+        for t in todos
+    ]
+
+    try:
+        review = generate_daily_review(article_data, holding_data, note_data, todo_data)
+        return {"review": review, "date": date.today().isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Daily review failed: {str(e)}")

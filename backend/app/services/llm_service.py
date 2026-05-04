@@ -610,3 +610,147 @@ def generate_daily_brief(articles: list, holdings: list) -> str:
     )
 
     return response.choices[0].message.content or "今日简报生成失败，请稍后重试。"
+
+
+def generate_literature_review(articles: list) -> str:
+    """Generate a literature review from a list of articles. Single LLM call."""
+    if not articles:
+        return "暂无论文可供综述。"
+
+    articles_text = "\n".join(
+        f"- [{a['title']}] {a.get('summary', '')[:150]}"
+        for a in articles[:20]
+    )
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是一位学术研究助手。根据以下论文列表，生成一份简明的文献综述。\n"
+                    "要求：\n"
+                    "1. 按主题/方向分组归纳\n"
+                    "2. 指出研究趋势和热点\n"
+                    "3. 提炼关键技术方法\n"
+                    "4. 指出研究空白和未来方向\n"
+                    "5. 用中文回复，使用 Markdown 格式"
+                ),
+            },
+            {"role": "user", "content": f"论文列表：\n{articles_text}"},
+        ],
+        temperature=0.4,
+        max_tokens=4000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    return response.choices[0].message.content or "综述生成失败，请稍后重试。"
+
+
+def generate_daily_review(
+    articles: list, holdings: list, notes: list, todos: list
+) -> str:
+    """Generate a cross-module daily review summary."""
+    article_text = "\n".join(
+        f"- {a['title']}" for a in articles[:5]
+    ) or "今日无新论文。"
+
+    holding_text = "\n".join(
+        f"- {h['name']}({h.get('code', '')}): {'盈利' if h.get('profit', 0) >= 0 else '亏损'} {abs(h.get('profit', 0)):.0f}元"
+        for h in holdings[:10]
+    ) or "暂无持仓。"
+
+    note_text = "\n".join(
+        f"- [{n.get('mood', '')}] {n['content'][:50]}" for n in notes[:5]
+    ) or "今日无闪念。"
+
+    todo_text = "\n".join(
+        f"- {'[x]' if t.get('is_done') else '[ ]'} {t.get('parsed_title', t.get('content', ''))}"
+        for t in todos[:10]
+    ) or "暂无待办。"
+
+    from datetime import date
+    today = date.today().isoformat()
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    f"今天是 {today}。你是一位贴心的AI助手，为用户生成每日复盘。\n"
+                    "包含：\n"
+                    "1. 今日科研进展（论文相关）\n"
+                    "2. 持仓动态（简要盈亏）\n"
+                    "3. 灵感与心情回顾\n"
+                    "4. 待办完成情况\n"
+                    "5. 明日建议（1-2条）\n"
+                    "语气温暖简洁，用中文，Markdown 格式。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"【论文】\n{article_text}\n\n"
+                    f"【持仓】\n{holding_text}\n\n"
+                    f"【闪念】\n{note_text}\n\n"
+                    f"【待办】\n{todo_text}"
+                ),
+            },
+        ],
+        temperature=0.5,
+        max_tokens=3000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    return response.choices[0].message.content or "每日复盘生成失败，请稍后重试。"
+
+
+def generate_rebalance_suggestions(holdings: list, allocation: dict) -> str:
+    """Generate portfolio rebalancing suggestions based on current allocation."""
+    if not holdings:
+        return "暂无持仓数据，无法生成建议。"
+
+    holdings_text = "\n".join(
+        f"- {h['name']}({h.get('code', '')}): 市值 {h.get('market_value', 0):.0f}元, "
+        f"占比 {h.get('pct', 0):.1f}%, 盈亏 {h.get('profit_pct', 0):.1f}%"
+        for h in holdings
+    )
+
+    total = allocation.get("total", 0)
+    items_text = "\n".join(
+        f"- {i['name']}: {i.get('pct', 0):.1f}%"
+        for i in allocation.get("items", [])
+    )
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是一位投资组合分析师。根据用户的持仓分布，给出再平衡建议。\n"
+                    "要求：\n"
+                    "1. 分析当前集中度风险（是否过度集中于单一资产/行业）\n"
+                    "2. 评估各持仓的表现\n"
+                    "3. 给出具体的再平衡建议（增持/减持/持有）\n"
+                    "4. 注意分散风险\n"
+                    "5. 不要给出具体买卖价格，只给方向性建议\n"
+                    "6. 用中文回复，Markdown 格式"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"总资产: {total:.0f}元\n\n"
+                    f"【持仓明细】\n{holdings_text}\n\n"
+                    f"【占比分布】\n{items_text}"
+                ),
+            },
+        ],
+        temperature=0.4,
+        max_tokens=3000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    return response.choices[0].message.content or "再平衡建议生成失败，请稍后重试。"

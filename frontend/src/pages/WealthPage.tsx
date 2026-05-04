@@ -9,6 +9,7 @@ import { HoldingForm } from "@/components/wealth/HoldingForm";
 import { OcrUploader } from "@/components/wealth/OcrUploader";
 import { InsightPanel } from "@/components/wealth/InsightPanel";
 import { ReportPanel } from "@/components/wealth/ReportPanel";
+import { RebalanceCard } from "@/components/wealth/RebalanceCard";
 import { PieChart } from "@/components/charts/PieChart";
 import { HeatMap } from "@/components/charts/HeatMap";
 import { NumberRoller } from "@/components/wealth/NumberRoller";
@@ -242,6 +243,11 @@ export default function WealthPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Rebalance Suggestions */}
+          {portfolio && portfolio.holdings.length > 0 && (
+            <RebalanceCard />
           )}
 
           <OcrUploader onImported={() => { refetchHoldings(); refetchPortfolio(); showSuccess("持仓已导入"); }} onError={showError} />

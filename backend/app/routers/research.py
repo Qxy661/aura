@@ -437,3 +437,33 @@ def get_suggestions(db: Session = Depends(get_db)):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}")
+
+
+# --- Literature Review ---
+@router.post("/literature-review")
+def generate_literature_review_endpoint(
+    folder: Optional[str] = None,
+    limit: int = Query(20, ge=5, le=50),
+    db: Session = Depends(get_db),
+):
+    """Generate AI literature review from recent articles."""
+    from app.services.llm_service import generate_literature_review
+
+    query = db.query(Article).filter(Article.summary != "")
+    if folder:
+        query = query.filter(Article.folder == folder)
+    articles = query.order_by(Article.fetched_at.desc()).limit(limit).all()
+
+    if not articles:
+        raise HTTPException(status_code=400, detail="No articles with summaries found")
+
+    article_data = [
+        {"title": a.title, "summary": a.summary or a.abstract[:200]}
+        for a in articles
+    ]
+
+    try:
+        review = generate_literature_review(article_data)
+        return {"review": review, "article_count": len(articles)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Review generation failed: {str(e)}")

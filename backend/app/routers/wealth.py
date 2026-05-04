@@ -306,3 +306,43 @@ def get_allocation(db: Session = Depends(get_db)):
 
     items.sort(key=lambda x: x["market_value"], reverse=True)
     return {"items": items, "total": round(total, 2)}
+
+
+# --- Rebalance Suggestions ---
+@router.post("/rebalance")
+def generate_rebalance(db: Session = Depends(get_db)):
+    """Generate AI rebalancing suggestions based on current portfolio."""
+    from app.services.llm_service import generate_rebalance_suggestions
+    from app.services.market_service import fetch_holding_price
+
+    holdings = db.query(Holding).all()
+    if not holdings:
+        raise HTTPException(status_code=400, detail="No holdings to analyze")
+
+    # Build allocation data
+    items = []
+    for h in holdings:
+        market = fetch_holding_price(h.code, h.asset_type)
+        current_price = market.get("current_price", 0) if market else 0
+        market_value = current_price * h.shares if current_price > 0 else h.cost_price * h.shares
+        cost_value = h.cost_price * h.shares
+        profit = market_value - cost_value
+        profit_pct = (profit / cost_value * 100) if cost_value > 0 else 0
+        items.append({
+            "name": h.name,
+            "code": h.code,
+            "market_value": round(market_value, 2),
+            "profit_pct": round(profit_pct, 2),
+        })
+
+    total = sum(i["market_value"] for i in items)
+    for item in items:
+        item["pct"] = round(item["market_value"] / total * 100, 1) if total > 0 else 0
+
+    allocation = {"items": items, "total": round(total, 2)}
+
+    try:
+        suggestions = generate_rebalance_suggestions(items, allocation)
+        return {"suggestions": suggestions, "total": round(total, 2)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Rebalance failed: {str(e)}")

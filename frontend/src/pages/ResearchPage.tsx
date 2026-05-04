@@ -8,6 +8,7 @@ import { ArticleCard } from "@/components/research/ArticleCard";
 import { PaperNetwork } from "@/components/research/PaperNetwork";
 import { ResearchSuggestions } from "@/components/research/ResearchSuggestions";
 import { DailyBriefCard } from "@/components/productivity/DailyBriefCard";
+import { LiteratureReviewCard } from "@/components/research/LiteratureReviewCard";
 import { RefreshCw, Bookmark, Search, Folder, Tag, Download, SlidersHorizontal, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Article {
@@ -206,6 +207,8 @@ export default function ResearchPage() {
         articleCount={dailyBrief?.article_count ?? 0}
         loading={briefLoading}
       />
+
+      <LiteratureReviewCard folder={selectedFolder || undefined} />
 
       <FieldSelector
         fields={fields ?? []}

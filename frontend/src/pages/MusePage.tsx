@@ -12,6 +12,7 @@ import { MoodTrend } from "@/components/muse/MoodTrend";
 import { TarotSection } from "@/components/muse/TarotSection";
 import { TodoInput } from "@/components/productivity/TodoInput";
 import { TodoList } from "@/components/productivity/TodoList";
+import { DailyReviewCard } from "@/components/productivity/DailyReviewCard";
 import { Shuffle, PenLine, Trash2, Plus, Sparkles, Wand2, Loader2 } from "lucide-react";
 
 interface Quote {
@@ -211,6 +212,9 @@ export default function MusePage() {
           onDelete={handleDeleteTodo}
         />
       </div>
+
+      {/* Daily Review */}
+      <DailyReviewCard />
 
       {/* Daily Quotes */}
       <div className="cute-card p-4 space-y-3">
