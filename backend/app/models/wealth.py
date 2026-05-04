@@ -16,6 +16,20 @@ class Holding(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    holding_id = Column(Integer, ForeignKey("holdings.id"), nullable=False)
+    tx_type = Column(String(10), nullable=False)  # "buy" or "sell"
+    price = Column(Float, nullable=False)  # 交易价格
+    shares = Column(Float, nullable=False)  # 交易份额
+    amount = Column(Float, nullable=False)  # 交易金额
+    note = Column(Text, default="")  # 备注
+    tx_date = Column(DateTime, nullable=False)  # 交易日期
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class PriceHistory(Base):
     __tablename__ = "price_history"
 

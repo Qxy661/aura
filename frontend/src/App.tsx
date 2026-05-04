@@ -1,13 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { WakeUpScreen } from "@/components/ui/WakeUpScreen";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { GlobalSearch } from "@/components/search/GlobalSearch";
+import { GlobalChat } from "@/components/chat/GlobalChat";
+import { requestNotificationPermission, isNotificationSupported } from "@/lib/notifications";
 import ResearchPage from "@/pages/ResearchPage";
 import WealthPage from "@/pages/WealthPage";
 import MusePage from "@/pages/MusePage";
 import SettingsPage from "@/pages/SettingsPage";
+import HoldingDetailPage from "@/pages/HoldingDetailPage";
 import { PuppyMascot } from "@/components/ui/PuppyMascot";
 
 function NotFound() {
@@ -28,6 +32,7 @@ function AnimatedRoutes() {
       <Routes location={location}>
         <Route path="/" element={<ResearchPage />} />
         <Route path="/wealth" element={<WealthPage />} />
+        <Route path="/wealth/holding/:id" element={<HoldingDetailPage />} />
         <Route path="/muse" element={<MusePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/404" element={<NotFound />} />
@@ -37,10 +42,25 @@ function AnimatedRoutes() {
   );
 }
 
+function AppInit() {
+  useEffect(() => {
+    if (isNotificationSupported() && Notification.permission === "default") {
+      // Silently request permission after user interacts
+      const handler = () => {
+        requestNotificationPermission();
+        document.removeEventListener("click", handler);
+      };
+      document.addEventListener("click", handler, { once: true });
+    }
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <ErrorBoundary>
+        <AppInit />
         <WakeUpScreen />
         <div className="min-h-screen bg-[var(--color-background)] pb-20">
           {/* Decorative background paws */}
@@ -57,6 +77,7 @@ export default function App() {
           </main>
 
           <BottomNav />
+          <GlobalChat />
         </div>
       </ErrorBoundary>
     </BrowserRouter>

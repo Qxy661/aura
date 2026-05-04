@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api";
 import { TrendLine } from "@/components/charts/TrendLine";
@@ -36,6 +37,7 @@ interface PriceHistoryData {
 }
 
 export function HoldingCard({ holding, index, onDelete, onUpdated, onError, marketData }: HoldingCardProps) {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [showTrend, setShowTrend] = useState(false);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryData | null>(null);
@@ -110,8 +112,9 @@ export function HoldingCard({ holding, index, onDelete, onUpdated, onError, mark
 
   return (
     <div
-      className="cute-card p-4 fade-in-up"
+      className="cute-card p-4 fade-in-up cursor-pointer hover:shadow-md transition-shadow"
       style={{ animationDelay: `${index * 0.05}s` }}
+      onClick={() => !editing && navigate(`/wealth/holding/${holding.id}`)}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

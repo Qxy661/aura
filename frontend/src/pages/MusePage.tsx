@@ -15,6 +15,7 @@ import { TodoList } from "@/components/productivity/TodoList";
 import { DailyReviewCard } from "@/components/productivity/DailyReviewCard";
 import { VoiceInput } from "@/components/ui/VoiceInput";
 import { ListSkeleton } from "@/components/ui/Skeleton";
+import { scheduleTodoReminder } from "@/lib/notifications";
 import { Shuffle, PenLine, Trash2, Plus, Sparkles, Wand2, Loader2 } from "lucide-react";
 
 interface Quote {
@@ -152,8 +153,11 @@ export default function MusePage() {
 
   const handleAddTodo = async (content: string) => {
     try {
-      await api.post("/productivity/todos", { content });
+      const result = await api.post<{ id: number; parsed_title: string; parsed_deadline: string }>("/productivity/todos", { content });
       showSuccess("待办已添加");
+      if (result.parsed_deadline) {
+        scheduleTodoReminder(result.parsed_title || content, result.parsed_deadline);
+      }
       refetchTodos();
     } catch (e) {
       showError(e instanceof Error ? e.message : "添加失败");
