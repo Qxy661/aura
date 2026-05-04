@@ -754,3 +754,60 @@ def generate_rebalance_suggestions(holdings: list, allocation: dict) -> str:
     )
 
     return response.choices[0].message.content or "再平衡建议生成失败，请稍后重试。"
+
+
+def generate_behavior_analysis(holdings: list, price_history: dict, insights: list) -> str:
+    """Analyze investment behavior patterns from holdings and history."""
+    if not holdings:
+        return "暂无持仓数据，无法分析。"
+
+    holdings_text = "\n".join(
+        f"- {h['name']}({h.get('code', '')}): 成本 {h.get('cost_price', 0)}, "
+        f"份额 {h.get('shares', 0)}, 类型 {h.get('asset_type', '')}, "
+        f"创建于 {h.get('created_at', '')}"
+        for h in holdings
+    )
+
+    history_text = ""
+    for code, prices in price_history.items():
+        if prices:
+            recent = prices[-5:]  # Last 5 data points
+            price_str = ", ".join(f"{p['price']}" for p in recent)
+            history_text += f"- {code}: {price_str}\n"
+    if not history_text:
+        history_text = "暂无历史价格数据。"
+
+    insights_text = "\n".join(
+        f"- {i.get('content', '')[:80]}" for i in insights[:10]
+    ) or "暂无投资观点记录。"
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是一位投资行为分析师。根据用户的持仓历史和交易记录，分析其投资行为模式。\n"
+                    "包含：\n"
+                    "1. 持仓偏好分析（资产类型偏好、行业集中度）\n"
+                    "2. 投资风格判断（长期/短期、稳健/激进）\n"
+                    "3. 行为洞察（是否有追涨杀跌倾向、持仓周期等）\n"
+                    "4. 改进建议（2-3条具体建议）\n"
+                    "用中文回复，Markdown 格式，语气客观温和。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"【持仓记录】\n{holdings_text}\n\n"
+                    f"【近期价格走势】\n{history_text}\n\n"
+                    f"【投资观点】\n{insights_text}"
+                ),
+            },
+        ],
+        temperature=0.4,
+        max_tokens=3000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    return response.choices[0].message.content or "行为分析生成失败，请稍后重试。"

@@ -346,3 +346,55 @@ def generate_rebalance(db: Session = Depends(get_db)):
         return {"suggestions": suggestions, "total": round(total, 2)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rebalance failed: {str(e)}")
+
+
+# --- Behavior Analysis ---
+@router.post("/behavior-analysis")
+def generate_behavior(db: Session = Depends(get_db)):
+    """Analyze investment behavior patterns."""
+    from app.services.llm_service import generate_behavior_analysis
+    from app.services.market_service import fetch_holding_price
+    from app.models.muse import Insight
+
+    holdings = db.query(Holding).all()
+    if not holdings:
+        raise HTTPException(status_code=400, detail="No holdings to analyze")
+
+    holding_data = [
+        {
+            "name": h.name,
+            "code": h.code,
+            "cost_price": h.cost_price,
+            "shares": h.shares,
+            "asset_type": h.asset_type,
+            "created_at": str(h.created_at) if h.created_at else "",
+        }
+        for h in holdings
+    ]
+
+    # Gather price history for each holding
+    price_history = {}
+    for h in holdings:
+        from app.models.wealth import PriceHistory
+        history = (
+            db.query(PriceHistory)
+            .filter(PriceHistory.holding_id == h.id)
+            .order_by(PriceHistory.recorded_at.asc())
+            .all()
+        )
+        price_history[h.code] = [
+            {"price": p.price, "date": str(p.recorded_at)}
+            for p in history
+        ]
+
+    insights = db.query(Insight).order_by(Insight.created_at.desc()).limit(10).all()
+    insight_data = [
+        {"content": i.content, "source": i.source or ""}
+        for i in insights
+    ]
+
+    try:
+        analysis = generate_behavior_analysis(holding_data, price_history, insight_data)
+        return {"analysis": analysis}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")

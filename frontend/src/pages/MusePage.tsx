@@ -13,6 +13,7 @@ import { TarotSection } from "@/components/muse/TarotSection";
 import { TodoInput } from "@/components/productivity/TodoInput";
 import { TodoList } from "@/components/productivity/TodoList";
 import { DailyReviewCard } from "@/components/productivity/DailyReviewCard";
+import { VoiceInput } from "@/components/ui/VoiceInput";
 import { Shuffle, PenLine, Trash2, Plus, Sparkles, Wand2, Loader2 } from "lucide-react";
 
 interface Quote {
@@ -378,6 +379,7 @@ export default function MusePage() {
               </button>
             ))}
           </div>
+          <VoiceInput onResult={(text) => setNoteText((prev) => prev ? prev + " " + text : text)} placeholder="语音记录灵感..." />
           <textarea
             placeholder="灵感一闪，快记下来..."
             value={noteText}
