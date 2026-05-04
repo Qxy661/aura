@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
@@ -233,6 +233,22 @@ async def ocr_holdings(file: UploadFile = File(...)):
         holdings_data = extract_holdings_from_image(image_bytes, media_type)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OCR 识别失败: {str(e)}")
+
+    return {"holdings": holdings_data}
+
+
+@router.post("/holdings/parse-text")
+def parse_holdings_text(text: str = Body(..., embed=True)):
+    """Parse fund holdings from user-pasted text via LLM."""
+    from app.services.llm_service import parse_holdings_from_text
+
+    if not text or not text.strip():
+        raise HTTPException(status_code=400, detail="请输入持仓文字信息")
+
+    try:
+        holdings_data = parse_holdings_from_text(text.strip())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"解析失败: {str(e)}")
 
     return {"holdings": holdings_data}
 

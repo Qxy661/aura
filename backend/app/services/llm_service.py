@@ -345,6 +345,50 @@ def extract_holdings_from_image(image_bytes: bytes, media_type: str) -> list:
 
 
 @with_retry(max_retries=2)
+def parse_holdings_from_text(text: str) -> list:
+    """Parse fund holdings from user-pasted text using LLM."""
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是一个基金持仓解析助手。用户会粘贴基金APP中的持仓文字信息，"
+                    "你需要从中提取所有基金持仓信息。返回JSON数组格式：\n"
+                    '[{"name": "基金名称", "code": "基金代码", "cost_price": 成本价数字, "shares": 份额数字, "asset_type": "fund"}]\n'
+                    "注意：\n"
+                    "1. cost_price是每份成本价（净值），shares是持有份额\n"
+                    "2. 如果显示的是持有金额而非份额，shares填金额，cost_price填1\n"
+                    "3. 如果看不清某个字段，用合理估计值\n"
+                    "4. asset_type默认为fund，如果是股票则为stock\n"
+                    "5. 只返回JSON数组，不要其他文字"
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"请解析以下持仓文字信息：\n\n{text}",
+            },
+        ],
+        temperature=0.1,
+        max_tokens=8000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    result_text = response.choices[0].message.content
+    if not result_text:
+        raise ValueError("AI 未返回解析结果，请重试")
+
+    result = _parse_json_response(result_text, None)
+    if result is None:
+        raise ValueError("AI 返回的内容无法解析，请重试或手动添加")
+    if isinstance(result, list):
+        return result
+    if isinstance(result, dict) and result.get("name"):
+        return [result]
+    return []
+
+
+@with_retry(max_retries=2)
 def evaluate_user_relevance(articles: list, research_profile: str) -> list:
     """Batch evaluate articles for personal relevance. Returns list of {id, score, reason}."""
     if not articles:
