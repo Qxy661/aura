@@ -7,6 +7,7 @@ import { FieldSelector } from "@/components/research/FieldSelector";
 import { ArticleCard } from "@/components/research/ArticleCard";
 import { PaperNetwork } from "@/components/research/PaperNetwork";
 import { ResearchSuggestions } from "@/components/research/ResearchSuggestions";
+import { DailyBriefCard } from "@/components/productivity/DailyBriefCard";
 import { RefreshCw, Bookmark, Search, Folder, Tag, Download, SlidersHorizontal, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Article {
@@ -41,6 +42,13 @@ interface ResearchField {
   is_active: boolean;
 }
 
+interface DailyBrief {
+  date: string;
+  content: string;
+  article_count: number;
+  cached: boolean;
+}
+
 export default function ResearchPage() {
   const { showSuccess, showError, showInfo, ToastContainer } = useToast();
   const [savedOnly, setSavedOnly] = useState(false);
@@ -65,6 +73,9 @@ export default function ResearchPage() {
   );
   const { data: tags } = useApi<string[]>(
     () => api.get("/research/tags")
+  );
+  const { data: dailyBrief, loading: briefLoading } = useApi<DailyBrief>(
+    () => api.get("/productivity/brief/today")
   );
 
   useEffect(() => {
@@ -187,6 +198,13 @@ export default function ResearchPage() {
             </button>
           </div>
         }
+      />
+
+      <DailyBriefCard
+        content={dailyBrief?.content ?? null}
+        date={dailyBrief?.date ?? ""}
+        articleCount={dailyBrief?.article_count ?? 0}
+        loading={briefLoading}
       />
 
       <FieldSelector

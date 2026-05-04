@@ -3,6 +3,7 @@ import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { WakeUpScreen } from "@/components/ui/WakeUpScreen";
 import { PageTransition } from "@/components/layout/PageTransition";
+import { GlobalSearch } from "@/components/search/GlobalSearch";
 import ResearchPage from "@/pages/ResearchPage";
 import WealthPage from "@/pages/WealthPage";
 import MusePage from "@/pages/MusePage";
@@ -51,6 +52,7 @@ export default function App() {
           </div>
 
           <main className="relative z-10 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto px-4 pt-6">
+            <GlobalSearch />
             <AnimatedRoutes />
           </main>
 

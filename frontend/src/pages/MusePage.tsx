@@ -10,6 +10,8 @@ import { FlipCard } from "@/components/muse/FlipCard";
 import { MoodRainbow } from "@/components/muse/MoodRainbow";
 import { MoodTrend } from "@/components/muse/MoodTrend";
 import { TarotSection } from "@/components/muse/TarotSection";
+import { TodoInput } from "@/components/productivity/TodoInput";
+import { TodoList } from "@/components/productivity/TodoList";
 import { Shuffle, PenLine, Trash2, Plus, Sparkles, Wand2, Loader2 } from "lucide-react";
 
 interface Quote {
@@ -36,6 +38,16 @@ interface MoodRecord {
   note: string;
 }
 
+interface TodoItem {
+  id: number;
+  content: string;
+  parsed_title: string;
+  parsed_deadline: string;
+  parsed_priority: number;
+  category: string;
+  is_done: boolean;
+}
+
 const MOODS = [
   { key: "happy", label: "开心", emoji: "😊", color: "#F5C842" },
   { key: "calm", label: "平静", emoji: "😌", color: "#6BBF59" },
@@ -57,6 +69,9 @@ export default function MusePage() {
   );
   const { data: moodAdvice, refetch: refetchAdvice } = useApi<{ mood: string; advice: string }>(
     () => api.get("/muse/mood/advice")
+  );
+  const { data: todos, refetch: refetchTodos } = useApi<TodoItem[]>(
+    () => api.get("/productivity/todos")
   );
 
   const [noteText, setNoteText] = useState("");
@@ -132,6 +147,35 @@ export default function MusePage() {
     }
   };
 
+  const handleAddTodo = async (content: string) => {
+    try {
+      await api.post("/productivity/todos", { content });
+      showSuccess("待办已添加");
+      refetchTodos();
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "添加失败");
+    }
+  };
+
+  const handleToggleTodo = async (id: number, isDone: boolean) => {
+    try {
+      await api.patch(`/productivity/todos/${id}`, { is_done: isDone });
+      refetchTodos();
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "更新失败");
+    }
+  };
+
+  const handleDeleteTodo = async (id: number) => {
+    try {
+      await api.del(`/productivity/todos/${id}`);
+      showSuccess("待办已删除");
+      refetchTodos();
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "删除失败");
+    }
+  };
+
   const handleGenerateQuotes = async () => {
     setGenerating(true);
     try {
@@ -156,6 +200,17 @@ export default function MusePage() {
         subtitle="书摘 · AI 解读 · 心情 · 塔罗"
         mascotMood="excited"
       />
+
+      {/* Smart Todos */}
+      <div className="cute-card p-4 space-y-3">
+        <p className="text-xs font-bold text-[var(--color-muted-foreground)]">✅ 今日待办</p>
+        <TodoInput onAdd={handleAddTodo} />
+        <TodoList
+          todos={todos ?? []}
+          onToggle={handleToggleTodo}
+          onDelete={handleDeleteTodo}
+        />
+      </div>
 
       {/* Daily Quotes */}
       <div className="cute-card p-4 space-y-3">

@@ -544,3 +544,69 @@ def generate_research_suggestions(articles: list, research_profile: str) -> dict
     text = response.choices[0].message.content or "{}"
     result = _parse_json_response(text, {"suggestions": [], "trends": "", "priority": []})
     return result if isinstance(result, dict) else {"suggestions": [], "trends": "", "priority": []}
+
+
+def parse_todo(content: str) -> dict:
+    """Parse natural language todo into structured fields. Minimal LLM call."""
+    from datetime import date
+    today = date.today().isoformat()
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    f"Today is {today}. Parse the user's todo into JSON:\n"
+                    '{"title":"short task title","deadline":"ISO date or empty string","priority":1-3}\n'
+                    "Priority: 1=urgent, 2=normal, 3=low. Only return JSON."
+                ),
+            },
+            {"role": "user", "content": content},
+        ],
+        temperature=0,
+        max_tokens=100,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    text = response.choices[0].message.content or "{}"
+    result = _parse_json_response(text, {})
+    if isinstance(result, dict) and result.get("title"):
+        return result
+    return {"title": content, "deadline": "", "priority": 2}
+
+
+def generate_daily_brief(articles: list, holdings: list) -> str:
+    """Generate a daily research + portfolio brief. ~80 token prompt, cached in DB."""
+    if not articles and not holdings:
+        return "今天暂无新数据。继续加油！"
+
+    article_text = "\n".join(
+        f"- {a['title']}: {a.get('summary', '')[:80]}"
+        for a in articles[:10]
+    ) or "今天暂无新论文。"
+
+    holding_text = ", ".join(h["name"] for h in holdings[:10]) or "暂无持仓。"
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Generate a concise daily research brief in Chinese. "
+                    "3-5 bullet points covering: key papers, research trends, portfolio watch. "
+                    "Be brief and actionable. Use emoji sparingly."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Today's papers:\n{article_text}\n\nPortfolio: {holding_text}",
+            },
+        ],
+        temperature=0.3,
+        max_tokens=300,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    return response.choices[0].message.content or "今日简报生成失败，请稍后重试。"

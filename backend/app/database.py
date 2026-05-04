@@ -27,6 +27,7 @@ def get_db():
 
 def init_db():
     from app.models import research, wealth, muse  # noqa: F401
+    from app.models import productivity  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
     # SQLite migration: add new columns if they don't exist

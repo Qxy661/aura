@@ -5,6 +5,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.routers import research, wealth, muse
 from app.routers import settings as settings_router
+from app.routers import search, productivity
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +48,8 @@ app.include_router(research.router)
 app.include_router(wealth.router)
 app.include_router(muse.router)
 app.include_router(settings_router.router)
+app.include_router(search.router)
+app.include_router(productivity.router)
 
 
 @app.on_event("startup")
