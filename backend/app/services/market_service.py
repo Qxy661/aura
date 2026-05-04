@@ -2,9 +2,14 @@ import httpx
 import re
 import json
 import logging
+import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# Simple TTL cache for market prices (code -> {data, timestamp})
+_price_cache: dict = {}
+_CACHE_TTL = 300  # 5 minutes
 
 # Sina Finance API endpoints (HTTP only - HTTPS has SSL issues in some networks)
 SINA_STOCK_URL = "http://hq.sinajs.cn/list="
@@ -123,17 +128,26 @@ def fetch_fund_nav(code: str) -> Optional[dict]:
 
 
 def fetch_holding_price(code: str, asset_type: str) -> Optional[dict]:
-    """Fetch price for a holding based on its asset type."""
+    """Fetch price for a holding based on its asset type. Results cached for 5 min."""
+    cache_key = f"{code}:{asset_type}"
+    cached = _price_cache.get(cache_key)
+    if cached and (time.time() - cached["ts"]) < _CACHE_TTL:
+        return cached["data"]
+
     if asset_type == "fund":
-        return fetch_fund_nav(code)
+        result = fetch_fund_nav(code)
     elif asset_type in ("stock", "a_share"):
-        # Auto-detect exchange
         if code.startswith("6"):
-            return fetch_stock_price(f"sh{code}")
+            result = fetch_stock_price(f"sh{code}")
         else:
-            return fetch_stock_price(f"sz{code}")
+            result = fetch_stock_price(f"sz{code}")
     elif asset_type == "us_stock":
-        return fetch_stock_price(f"us{code.upper()}")
+        result = fetch_stock_price(f"us{code.upper()}")
     elif asset_type == "hk_stock":
-        return fetch_stock_price(f"hk{code}")
-    return None
+        result = fetch_stock_price(f"hk{code}")
+    else:
+        result = None
+
+    if result:
+        _price_cache[cache_key] = {"data": result, "ts": time.time()}
+    return result

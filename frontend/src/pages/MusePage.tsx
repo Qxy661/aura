@@ -14,6 +14,7 @@ import { TodoInput } from "@/components/productivity/TodoInput";
 import { TodoList } from "@/components/productivity/TodoList";
 import { DailyReviewCard } from "@/components/productivity/DailyReviewCard";
 import { VoiceInput } from "@/components/ui/VoiceInput";
+import { ListSkeleton } from "@/components/ui/Skeleton";
 import { Shuffle, PenLine, Trash2, Plus, Sparkles, Wand2, Loader2 } from "lucide-react";
 
 interface Quote {
@@ -63,7 +64,7 @@ export default function MusePage() {
   const { data: quotes, refetch: refetchQuotes } = useApi<Quote[]>(
     () => api.get("/muse/quotes/today")
   );
-  const { data: notes, refetch: refetchNotes } = useApi<Note[]>(
+  const { data: notes, refetch: refetchNotes, loading: notesLoading } = useApi<Note[]>(
     () => api.get("/muse/notes")
   );
   const { data: moodData } = useApi<MoodRecord[]>(
@@ -433,7 +434,9 @@ export default function MusePage() {
       {/* Recent Notes */}
       <div className="cute-card p-4 space-y-3">
         <p className="text-xs font-bold text-[var(--color-muted-foreground)]">🐾 最近的闪念</p>
-        {(notes ?? []).length === 0 ? (
+        {notesLoading ? (
+          <ListSkeleton count={3} />
+        ) : (notes ?? []).length === 0 ? (
           <div className="text-center py-6">
             <PuppyMascot size={40} mood="sleeping" className="mx-auto" />
             <p className="text-xs text-[var(--color-muted-foreground)] mt-2">还没有记录，写下第一条闪念吧</p>

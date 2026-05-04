@@ -11,6 +11,7 @@ import { InsightPanel } from "@/components/wealth/InsightPanel";
 import { ReportPanel } from "@/components/wealth/ReportPanel";
 import { RebalanceCard } from "@/components/wealth/RebalanceCard";
 import { BehaviorCard } from "@/components/wealth/BehaviorCard";
+import { ListSkeleton } from "@/components/ui/Skeleton";
 import { PieChart } from "@/components/charts/PieChart";
 import { HeatMap } from "@/components/charts/HeatMap";
 import { NumberRoller } from "@/components/wealth/NumberRoller";
@@ -76,7 +77,7 @@ interface Allocation {
 
 export default function WealthPage() {
   const { showSuccess, showError, ToastContainer } = useToast();
-  const { data: holdings, refetch: refetchHoldings } = useApi<Holding[]>(
+  const { data: holdings, refetch: refetchHoldings, loading: holdingsLoading } = useApi<Holding[]>(
     () => api.get("/wealth/holdings")
   );
   const { data: insights, refetch: refetchInsights } = useApi<Insight[]>(
@@ -256,7 +257,9 @@ export default function WealthPage() {
 
           <OcrUploader onImported={() => { refetchHoldings(); refetchPortfolio(); showSuccess("持仓已导入"); }} onError={showError} />
 
-          {(holdings ?? []).length === 0 && !showAdd ? (
+          {holdingsLoading ? (
+            <ListSkeleton count={2} />
+          ) : (holdings ?? []).length === 0 && !showAdd ? (
             <div className="cute-card p-8 text-center">
               <div className="text-4xl mb-3">🐶</div>
               <p className="text-sm text-[var(--color-muted-foreground)] font-medium">还没有持仓记录</p>

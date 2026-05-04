@@ -9,6 +9,7 @@ import { PaperNetwork } from "@/components/research/PaperNetwork";
 import { ResearchSuggestions } from "@/components/research/ResearchSuggestions";
 import { DailyBriefCard } from "@/components/productivity/DailyBriefCard";
 import { LiteratureReviewCard } from "@/components/research/LiteratureReviewCard";
+import { ListSkeleton } from "@/components/ui/Skeleton";
 import { RefreshCw, Bookmark, Search, Folder, Tag, Download, SlidersHorizontal, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Article {
@@ -86,7 +87,7 @@ export default function ResearchPage() {
     }
   }, [fields, selectedFieldId]);
 
-  const { data, refetch } = useApi<ArticleList>(
+  const { data, refetch, loading: articlesLoading } = useApi<ArticleList>(
     () => {
       let url = `/research/articles?saved_only=${savedOnly}&limit=50&sort_by=${sortBy}`;
       if (selectedFolder) url += `&folder=${encodeURIComponent(selectedFolder)}`;
@@ -332,7 +333,9 @@ export default function ResearchPage() {
       </div>
 
       {/* Article List */}
-      {articles.length === 0 ? (
+      {articlesLoading ? (
+        <ListSkeleton count={3} />
+      ) : articles.length === 0 ? (
         <div className="cute-card p-10 text-center">
           <div className="text-5xl mb-4">🦴</div>
           <p className="text-sm text-[var(--color-muted-foreground)] font-medium">

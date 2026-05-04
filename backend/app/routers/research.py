@@ -173,6 +173,7 @@ def trigger_fetch(
     from app.services.arxiv_fetcher import fetch_arxiv
     from app.services.rss_fetcher import fetch_rss
     from app.services.semantic_scholar_fetcher import fetch_semantic_scholar
+    from app.services.pubmed_fetcher import fetch_pubmed
 
     # Determine keywords from field
     keywords_override = None
@@ -185,7 +186,7 @@ def trigger_fetch(
         if active:
             keywords_override = active.keywords
 
-    results = {"arxiv": 0, "rss": 0, "semantic_scholar": 0}
+    results = {"arxiv": 0, "rss": 0, "semantic_scholar": 0, "pubmed": 0}
     try:
         results["arxiv"] = fetch_arxiv(db, keywords_override=keywords_override)
     except Exception as e:
@@ -198,9 +199,14 @@ def trigger_fetch(
         results["semantic_scholar"] = fetch_semantic_scholar(db, keywords=keywords_override or "")
     except Exception as e:
         results["semantic_scholar_error"] = str(e)
+    try:
+        results["pubmed"] = fetch_pubmed(db, keywords=keywords_override or "")
+    except Exception as e:
+        results["pubmed_error"] = str(e)
 
     # Auto-summarize new articles in background
-    if auto_summarize and (results["arxiv"] > 0 or results["semantic_scholar"] > 0):
+    total_new = results["arxiv"] + results["semantic_scholar"] + results["pubmed"]
+    if auto_summarize and total_new > 0:
         background_tasks.add_task(_batch_summarize_new)
 
     return results
