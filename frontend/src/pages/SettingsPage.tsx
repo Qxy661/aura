@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { useToast } from "@/hooks/useToast";
 import { api } from "@/lib/api";
 import { Eye, EyeOff, Zap, Save, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
@@ -20,6 +21,7 @@ interface TestResult {
 const STORAGE_KEY = "aura_llm_config";
 
 export default function SettingsPage() {
+  const { showSuccess, showError, ToastContainer } = useToast();
   const [config, setConfig] = useState<LLMConfig>({ api_key: "", base_url: "", model: "" });
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -55,11 +57,12 @@ export default function SettingsPage() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
       await api.post("/settings/llm", config);
       setSaved(true);
+      showSuccess("配置已保存并同步到服务器");
       setTimeout(() => setSaved(false), 2000);
     } catch {
-      // save locally even if backend fails
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
       setSaved(true);
+      showError("服务器同步失败，已保存到本地");
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
@@ -173,6 +176,7 @@ export default function SettingsPage() {
           修改后所有 AI 功能将使用新配置。
         </p>
       </div>
+      <ToastContainer />
     </div>
   );
 }

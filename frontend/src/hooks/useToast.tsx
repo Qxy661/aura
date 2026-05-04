@@ -1,15 +1,26 @@
-import { useState, useCallback } from "react";
-import { ErrorToast } from "@/components/ui/ErrorToast";
+import { useState, useCallback, useRef } from "react";
+import { Toast } from "@/components/ui/Toast";
+import type { ToastType } from "@/components/ui/Toast";
 import type { ReactNode } from "react";
 
-export function useToast() {
-  const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
-  const nextIdRef = { current: 0 };
+interface ToastItem {
+  id: number;
+  message: string;
+  type: ToastType;
+}
 
-  const showError = useCallback((message: string) => {
+export function useToast() {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const nextIdRef = useRef(0);
+
+  const showToast = useCallback((message: string, type: ToastType) => {
     const id = ++nextIdRef.current;
-    setToasts((prev) => [...prev, { id, message }]);
+    setToasts((prev) => [...prev, { id, message, type }]);
   }, []);
+
+  const showSuccess = useCallback((message: string) => showToast(message, "success"), [showToast]);
+  const showError = useCallback((message: string) => showToast(message, "error"), [showToast]);
+  const showInfo = useCallback((message: string) => showToast(message, "info"), [showToast]);
 
   const removeToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -19,11 +30,11 @@ export function useToast() {
     return (
       <>
         {toasts.map((t) => (
-          <ErrorToast key={t.id} message={t.message} onClose={() => removeToast(t.id)} />
+          <Toast key={t.id} message={t.message} type={t.type} onClose={() => removeToast(t.id)} />
         ))}
       </>
     );
   }
 
-  return { showError, ToastContainer };
+  return { showSuccess, showError, showInfo, ToastContainer };
 }

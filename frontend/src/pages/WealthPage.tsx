@@ -73,7 +73,7 @@ interface Allocation {
 }
 
 export default function WealthPage() {
-  const { showError, ToastContainer } = useToast();
+  const { showSuccess, showError, ToastContainer } = useToast();
   const { data: holdings, refetch: refetchHoldings } = useApi<Holding[]>(
     () => api.get("/wealth/holdings")
   );
@@ -99,6 +99,7 @@ export default function WealthPage() {
   const deleteHolding = async (id: number) => {
     try {
       await api.del(`/wealth/holdings/${id}`);
+      showSuccess("持仓已删除");
       refetchHoldings();
       refetchPortfolio();
     } catch (e) {
@@ -243,7 +244,7 @@ export default function WealthPage() {
             </div>
           )}
 
-          <OcrUploader onImported={() => { refetchHoldings(); refetchPortfolio(); }} onError={showError} />
+          <OcrUploader onImported={() => { refetchHoldings(); refetchPortfolio(); showSuccess("持仓已导入"); }} onError={showError} />
 
           {(holdings ?? []).length === 0 && !showAdd ? (
             <div className="cute-card p-8 text-center">

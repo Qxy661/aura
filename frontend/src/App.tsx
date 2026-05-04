@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { WakeUpScreen } from "@/components/ui/WakeUpScreen";
+import { PageTransition } from "@/components/layout/PageTransition";
 import ResearchPage from "@/pages/ResearchPage";
 import WealthPage from "@/pages/WealthPage";
 import MusePage from "@/pages/MusePage";
@@ -14,8 +15,24 @@ function NotFound() {
       <PuppyMascot size={80} mood="thinking" className="mx-auto" />
       <h2 className="text-lg font-bold mt-4">迷路了？</h2>
       <p className="text-sm text-[var(--color-muted-foreground)] mt-2">这个页面不存在哦</p>
-      <a href="/" className="btn-primary text-xs mt-4 inline-block px-6 py-2.5">回到首页</a>
+      <Link to="/" className="btn-primary text-xs mt-4 inline-block px-6 py-2.5">回到首页</Link>
     </div>
+  );
+}
+
+function AnimatedRoutes() {
+  const location = useLocation();
+  return (
+    <PageTransition key={location.pathname}>
+      <Routes location={location}>
+        <Route path="/" element={<ResearchPage />} />
+        <Route path="/wealth" element={<WealthPage />} />
+        <Route path="/muse" element={<MusePage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/404" element={<NotFound />} />
+        <Route path="*" element={<Navigate to="/404" replace />} />
+      </Routes>
+    </PageTransition>
   );
 }
 
@@ -34,14 +51,7 @@ export default function App() {
           </div>
 
           <main className="relative z-10 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto px-4 pt-6">
-            <Routes>
-              <Route path="/" element={<ResearchPage />} />
-              <Route path="/wealth" element={<WealthPage />} />
-              <Route path="/muse" element={<MusePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/404" element={<NotFound />} />
-              <Route path="*" element={<Navigate to="/404" replace />} />
-            </Routes>
+            <AnimatedRoutes />
           </main>
 
           <BottomNav />

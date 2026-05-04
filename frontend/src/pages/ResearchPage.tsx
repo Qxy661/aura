@@ -42,7 +42,7 @@ interface ResearchField {
 }
 
 export default function ResearchPage() {
-  const { showError, ToastContainer } = useToast();
+  const { showSuccess, showError, showInfo, ToastContainer } = useToast();
   const [savedOnly, setSavedOnly] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null);
@@ -100,6 +100,7 @@ export default function ResearchPage() {
       const param = selectedFieldId ? `?field_id=${selectedFieldId}` : "";
       await api.post(`/research/fetch${param}`);
       await refetch();
+      showSuccess("论文抓取完成");
     } catch (e) {
       showError(e instanceof Error ? e.message : "抓取文章失败");
     } finally {
@@ -113,6 +114,7 @@ export default function ResearchPage() {
     try {
       await api.patch(`/research/articles/${articleId}`, { folder: folderInput });
       setEditingFolder(null);
+      showSuccess("文件夹已更新");
       refetch();
     } catch (e) {
       showError(e instanceof Error ? e.message : "更新文件夹失败");
@@ -123,6 +125,7 @@ export default function ResearchPage() {
     try {
       await api.patch(`/research/articles/${articleId}`, { tags: tagInput });
       setEditingTags(null);
+      showSuccess("标签已更新");
       refetch();
     } catch (e) {
       showError(e instanceof Error ? e.message : "更新标签失败");
@@ -135,6 +138,7 @@ export default function ResearchPage() {
     if (savedOnly) params.set("saved_only", "true");
     const url = `/api/research/export/markdown${params.toString() ? "?" + params : ""}`;
     window.open(url, "_blank");
+    showInfo("正在导出 Markdown...");
   };
 
   const handleSmartFilter = async () => {
@@ -142,7 +146,7 @@ export default function ResearchPage() {
     try {
       const res = await api.post<{ evaluated: number }>("/research/articles/smart-filter");
       await refetch();
-      showError(`AI 已评估 ${res.evaluated} 篇论文的个人相关性`);
+      showSuccess(`AI 已评估 ${res.evaluated} 篇论文的个人相关性`);
     } catch (e) {
       showError(e instanceof Error ? e.message : "AI 筛选失败");
     } finally {

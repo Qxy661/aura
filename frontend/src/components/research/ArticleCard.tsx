@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Bookmark, BookmarkCheck, ExternalLink, ChevronDown, Sparkles, MessageCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 import { ScoreBar } from "./ScoreBar";
 import { PaperChat } from "./PaperChat";
 
@@ -30,6 +31,7 @@ interface ArticleCardProps {
 }
 
 export function ArticleCard({ article, index, onToggleSave }: ArticleCardProps) {
+  const { showSuccess, showError, ToastContainer } = useToast();
   const [expanded, setExpanded] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
   const [localSummary, setLocalSummary] = useState(article.summary);
@@ -51,8 +53,9 @@ export function ArticleCard({ article, index, onToggleSave }: ArticleCardProps) 
       setLocalSummary(result.summary);
       setLocalKeyPoints(result.key_points);
       setLocalScore(result.relevance_score);
+      showSuccess("AI 摘要已生成");
     } catch {
-      // silent
+      showError("摘要生成失败，请重试");
     } finally {
       setSummarizing(false);
     }
@@ -177,6 +180,7 @@ export function ArticleCard({ article, index, onToggleSave }: ArticleCardProps) 
           onClose={() => setShowChat(false)}
         />
       )}
+      <ToastContainer />
     </>
   );
 }

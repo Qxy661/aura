@@ -45,7 +45,7 @@ const MOODS = [
 ];
 
 export default function MusePage() {
-  const { showError, ToastContainer } = useToast();
+  const { showSuccess, showError, showInfo, ToastContainer } = useToast();
   const { data: quotes, refetch: refetchQuotes } = useApi<Quote[]>(
     () => api.get("/muse/quotes/today")
   );
@@ -73,6 +73,7 @@ export default function MusePage() {
   const deleteNote = async (id: number) => {
     try {
       await api.del(`/muse/notes/${id}`);
+      showSuccess("已删除");
       refetchNotes();
     } catch (e) {
       showError(e instanceof Error ? e.message : "删除失败");
@@ -91,6 +92,7 @@ export default function MusePage() {
       setSelectedMood("neutral");
       setRelatedQuoteId(null);
       setShowNoteInput(false);
+      showSuccess("灵感已记录");
       refetchNotes();
     } catch (e) {
       showError(e instanceof Error ? e.message : "记录失败");
@@ -103,6 +105,7 @@ export default function MusePage() {
       await api.post("/muse/quotes", quoteForm);
       setQuoteForm({ content: "", author: "", book_title: "" });
       setShowQuoteForm(false);
+      showSuccess("书摘已添加");
       refetchQuotes();
     } catch (e) {
       showError(e instanceof Error ? e.message : "添加失败");
@@ -119,7 +122,7 @@ export default function MusePage() {
       const result = await api.post<{ ai_summary: string; ai_analysis: string }>(`/muse/quotes/${quoteId}/analyze`);
       setAnalysisResults((prev) => ({ ...prev, [quoteId]: result }));
     } catch {
-      // silent
+      showError("AI 解读失败，点击可重试");
     } finally {
       setAnalyzingIds((prev) => {
         const next = new Set(prev);
@@ -134,8 +137,10 @@ export default function MusePage() {
     try {
       const result = await api.post<{ generated: number }>("/muse/quotes/generate?count=3");
       refetchQuotes();
-      if (result.generated === 0) {
-        showError("AI 暂时无法生成新书摘，请稍后再试");
+      if (result.generated > 0) {
+        showSuccess(`生成了 ${result.generated} 条新书摘`);
+      } else {
+        showInfo("暂时没有新书摘，稍后再试");
       }
     } catch (e) {
       showError(e instanceof Error ? e.message : "生成失败");

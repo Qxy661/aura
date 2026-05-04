@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Lightbulb, TrendingUp, Star, Loader2, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 
 interface Suggestions {
   suggestions: string[];
@@ -13,6 +14,7 @@ interface ResearchSuggestionsProps {
 }
 
 export function ResearchSuggestions({ onGoToArticle }: ResearchSuggestionsProps) {
+  const { showError, ToastContainer } = useToast();
   const [data, setData] = useState<Suggestions | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -24,13 +26,14 @@ export function ResearchSuggestions({ onGoToArticle }: ResearchSuggestionsProps)
       setData(res);
       setExpanded(true);
     } catch {
-      // silent
+      showError("生成建议失败，请重试");
     } finally {
       setLoading(false);
     }
   };
 
   return (
+    <>
     <div className="cute-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold text-[var(--color-muted-foreground)] flex items-center gap-1.5">
@@ -107,5 +110,7 @@ export function ResearchSuggestions({ onGoToArticle }: ResearchSuggestionsProps)
         </button>
       )}
     </div>
+    <ToastContainer />
+    </>
   );
 }
