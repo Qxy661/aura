@@ -151,3 +151,33 @@ def fetch_holding_price(code: str, asset_type: str) -> Optional[dict]:
     if result:
         _price_cache[cache_key] = {"data": result, "ts": time.time()}
     return result
+
+
+def search_funds(query: str, limit: int = 10) -> list:
+    """Search funds by name or code via Eastmoney API."""
+    if not query or len(query) < 2:
+        return []
+
+    try:
+        url = "https://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx"
+        params = {
+            "m": 1,
+            "key": query,
+            "pageindex": 1,
+            "pagesize": limit,
+        }
+        resp = httpx.get(url, params=params, timeout=10.0, follow_redirects=True)
+        resp.raise_for_status()
+        data = resp.json()
+
+        results = []
+        for item in (data.get("Datas") or []):
+            results.append({
+                "code": item.get("CODE", ""),
+                "name": item.get("NAME", ""),
+                "type": item.get("FundBaseInfo", {}).get("FTYPE", ""),
+            })
+        return results
+    except Exception as e:
+        logger.warning(f"Fund search failed: {e}")
+        return []

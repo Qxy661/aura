@@ -618,7 +618,7 @@ def generate_literature_review(articles: list) -> str:
         return "暂无论文可供综述。"
 
     articles_text = "\n".join(
-        f"- [{a['title']}] {a.get('summary', '')[:150]}"
+        f"- **{a['title']}**\n  摘要: {a.get('abstract', a.get('summary', ''))[:300]}\n  要点: {a.get('key_points', '')[:200]}"
         for a in articles[:20]
     )
 
@@ -628,19 +628,20 @@ def generate_literature_review(articles: list) -> str:
             {
                 "role": "system",
                 "content": (
-                    "你是一位学术研究助手。根据以下论文列表，生成一份简明的文献综述。\n"
+                    "你是一位学术研究助手。根据以下论文列表，生成一份结构化的文献综述。\n"
                     "要求：\n"
-                    "1. 按主题/方向分组归纳\n"
-                    "2. 指出研究趋势和热点\n"
-                    "3. 提炼关键技术方法\n"
-                    "4. 指出研究空白和未来方向\n"
-                    "5. 用中文回复，使用 Markdown 格式"
+                    "1. **研究背景**：概述该领域的研究现状\n"
+                    "2. **主要方法**：归纳各论文使用的关键技术方法\n"
+                    "3. **关键发现**：总结各论文的核心发现和贡献\n"
+                    "4. **研究趋势**：指出当前的研究热点和发展方向\n"
+                    "5. **未来方向**：提出研究空白和可能的未来研究方向\n"
+                    "6. 用中文回复，使用 Markdown 格式，引用具体论文名称"
                 ),
             },
             {"role": "user", "content": f"论文列表：\n{articles_text}"},
         ],
         temperature=0.4,
-        max_tokens=4000,
+        max_tokens=6000,
         extra_body={"reasoning_effort": "low"},
     )
 
@@ -648,11 +649,12 @@ def generate_literature_review(articles: list) -> str:
 
 
 def generate_daily_review(
-    articles: list, holdings: list, notes: list, todos: list
+    articles: list, holdings: list, notes: list, todos: list, moods: list = None
 ) -> str:
-    """Generate a cross-module daily review summary."""
+    """Generate a cross-module daily review summary with mood correlation."""
     article_text = "\n".join(
-        f"- {a['title']}" for a in articles[:5]
+        f"- {a['title']}{': ' + a.get('summary', '')[:60] if a.get('summary') else ''}"
+        for a in articles[:5]
     ) or "今日无新论文。"
 
     holding_text = "\n".join(
@@ -669,34 +671,48 @@ def generate_daily_review(
         for t in todos[:10]
     ) or "暂无待办。"
 
+    mood_text = ""
+    if moods:
+        mood_map = {"happy": "开心", "calm": "平静", "inspired": "灵感", "sad": "emo", "anxious": "焦虑"}
+        mood_text = "\n".join(
+            f"- {m.get('date', '')}: {mood_map.get(m['mood'], m['mood'])} (强度{m.get('intensity', 3)})"
+            for m in moods[:7]
+        )
+
     from datetime import date
     today = date.today().isoformat()
+
+    system_prompt = (
+        f"今天是 {today}。你是一位贴心的AI助手，为用户生成每日复盘。\n"
+        "包含：\n"
+        "1. 今日科研进展（论文相关）\n"
+        "2. 持仓动态（简要盈亏）\n"
+        "3. 灵感与心情回顾\n"
+        "4. 待办完成情况\n"
+        "5. 跨模块洞察（发现论文、持仓、心情之间的关联）\n"
+        "6. 明日建议（1-2条）\n\n"
+        "跨模块洞察要求：\n"
+        "- 如果用户研究的论文方向与持仓行业相关，指出关联（如'你的LLM研究与AI股票持仓方向一致'）\n"
+        "- 如果心情连续低落且持仓亏损，给予温暖关怀\n"
+        "- 如果心情好且科研进展顺利，给予正向反馈\n"
+        "- 如果待办积压多且心情焦虑，建议适当放松\n"
+        "语气温暖简洁，用中文，Markdown 格式。"
+    )
+
+    user_content = (
+        f"【论文】\n{article_text}\n\n"
+        f"【持仓】\n{holding_text}\n\n"
+        f"【闪念】\n{note_text}\n\n"
+        f"【待办】\n{todo_text}"
+    )
+    if mood_text:
+        user_content += f"\n\n【近7日心情】\n{mood_text}"
 
     response = get_client().chat.completions.create(
         model=get_effective_llm_config()["model"],
         messages=[
-            {
-                "role": "system",
-                "content": (
-                    f"今天是 {today}。你是一位贴心的AI助手，为用户生成每日复盘。\n"
-                    "包含：\n"
-                    "1. 今日科研进展（论文相关）\n"
-                    "2. 持仓动态（简要盈亏）\n"
-                    "3. 灵感与心情回顾\n"
-                    "4. 待办完成情况\n"
-                    "5. 明日建议（1-2条）\n"
-                    "语气温暖简洁，用中文，Markdown 格式。"
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"【论文】\n{article_text}\n\n"
-                    f"【持仓】\n{holding_text}\n\n"
-                    f"【闪念】\n{note_text}\n\n"
-                    f"【待办】\n{todo_text}"
-                ),
-            },
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
         ],
         temperature=0.5,
         max_tokens=3000,
@@ -811,3 +827,43 @@ def generate_behavior_analysis(holdings: list, price_history: dict, insights: li
     )
 
     return response.choices[0].message.content or "行为分析生成失败，请稍后重试。"
+
+
+@with_retry(max_retries=2)
+def analyze_paper_structured(title: str, abstract: str, summary: str, key_points: str) -> dict:
+    """Generate structured deep analysis for a paper."""
+    context = f"论文标题: {title}\n摘要: {abstract or '无'}\nAI总结: {summary or '无'}\n核心要点: {key_points or '无'}"
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是一个学术论文深度分析助手。请对论文进行结构化分析。\n"
+                    "返回JSON格式：\n"
+                    "{\n"
+                    '  "methodology": "研究方法论分析（用了什么方法、为什么用这个方法、方法的优缺点）",\n'
+                    '  "key_results": "关键实验结果和发现（具体数据和结论）",\n'
+                    '  "limitations": "论文的局限性和不足（作者承认的和潜在的）",\n'
+                    '  "suggested_questions": ["值得深入探讨的问题1", "问题2", "问题3"]\n'
+                    "}\n"
+                    "要求：\n"
+                    "1. 分析要有深度，避免泛泛而谈\n"
+                    "2. suggested_questions 要能引导深入理解论文\n"
+                    "3. 用中文回复\n"
+                    "4. 只返回JSON"
+                ),
+            },
+            {"role": "user", "content": context},
+        ],
+        temperature=0.4,
+        max_tokens=4000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    text = response.choices[0].message.content or "{}"
+    result = _parse_json_response(text, {})
+    if isinstance(result, dict):
+        return result
+    return {}

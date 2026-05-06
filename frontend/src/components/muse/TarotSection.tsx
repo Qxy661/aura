@@ -6,6 +6,7 @@ interface TarotCard {
   name: string;
   meaning: string;
   is_reversed: boolean;
+  personalized_reading: string;
 }
 
 interface TarotSectionProps {
@@ -43,8 +44,8 @@ export function TarotSection({ onError }: TarotSectionProps) {
         </button>
       </div>
       {card ? (
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-[#FFF5E6] to-[#FFE4B5] border border-[var(--color-primary)] fade-in-up">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-[#FFF5E6] to-[#FFE4B5] border border-[var(--color-primary)] fade-in-up space-y-3">
+          <div className="flex items-center gap-2">
             <span className="text-2xl">🃏</span>
             <div>
               <p className="text-sm font-extrabold">{card.name}</p>
@@ -54,6 +55,16 @@ export function TarotSection({ onError }: TarotSectionProps) {
           <p className="text-xs leading-relaxed text-[var(--color-muted-foreground)]">
             {card.meaning}
           </p>
+          {card.personalized_reading && (
+            <div className="pt-2 border-t border-[var(--color-primary)]/20">
+              <p className="text-[10px] font-semibold text-[var(--color-accent-foreground)] mb-1">
+                🐶 小狗的贴心解读
+              </p>
+              <p className="text-xs leading-relaxed text-[var(--color-foreground)]">
+                {card.personalized_reading}
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-4">

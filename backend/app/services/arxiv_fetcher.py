@@ -20,7 +20,7 @@ def _is_relevant(title: str, abstract: str, keywords: list) -> bool:
         # Match whole word or phrase
         if kw_lower in text:
             return True
-    return True  # Default to include if no keywords match (fallback)
+    return False  # No keyword matched — exclude this paper
 
 
 def fetch_arxiv(db: Session, max_results: int = 30, keywords_override: str = None) -> int:

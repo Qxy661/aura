@@ -26,6 +26,22 @@ export function PaperChat({ articleId, articleTitle, onClose }: PaperChatProps) 
     }
   }, [messages]);
 
+  // Load saved chat history on mount
+  useEffect(() => {
+    api.get<{ paper_chat_history?: string }>(`/research/articles/${articleId}`)
+      .then((article) => {
+        if (article.paper_chat_history) {
+          try {
+            const history = JSON.parse(article.paper_chat_history);
+            if (Array.isArray(history) && history.length > 0) {
+              setMessages(history);
+            }
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [articleId]);
+
   const handleFetchFullText = async () => {
     setFullTextStatus("loading");
     try {

@@ -15,9 +15,12 @@ class ArticleOut(BaseModel):
     relevance_score: float
     user_relevance_score: float
     is_saved: bool
+    is_read: bool = False
+    structured_analysis: Optional[str] = None
     tags: str
     folder: str
     notes: str
+    paper_chat_history: Optional[str] = None
     published_at: Optional[datetime]
     fetched_at: datetime
 
@@ -27,6 +30,7 @@ class ArticleOut(BaseModel):
 
 class ArticleUpdate(BaseModel):
     is_saved: Optional[bool] = None
+    is_read: Optional[bool] = None
     tags: Optional[str] = None
     folder: Optional[str] = None
     notes: Optional[str] = None

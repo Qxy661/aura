@@ -5,7 +5,7 @@ import random
 from app.database import get_db
 from app.models.muse import Quote, Note, MoodRecord
 from app.schemas.muse import (
-    QuoteCreate, QuoteOut, NoteCreate, NoteOut,
+    QuoteCreate, QuoteOut, NoteCreate, NoteUpdate, NoteOut,
     MoodRecordCreate, MoodRecordOut, TarotCard,
 )
 from app.services.llm_service import generate_quotes, generate_mood_advice
@@ -25,6 +25,22 @@ def get_today_quotes(db: Session = Depends(get_db)):
         fetch_quotes(db)
         all_quotes = db.query(Quote).filter(Quote.shown_date == None).all()
         if all_quotes:
+            # Try mood-based selection: check recent mood
+            recent_mood = (
+                db.query(MoodRecord)
+                .order_by(MoodRecord.date.desc())
+                .first()
+            )
+            if recent_mood and recent_mood.mood in ("sad", "anxious"):
+                # Prefer uplifting/calming quotes for negative moods
+                uplifting_keywords = ["希望", "自由", "勇敢", "幸福", "爱", "光", "力量", "坚强", "平静"]
+                mood_quotes = [
+                    q for q in all_quotes
+                    if any(kw in q.content for kw in uplifting_keywords)
+                ]
+                if len(mood_quotes) >= 3:
+                    all_quotes = mood_quotes
+
             selected = random.sample(all_quotes, min(3, len(all_quotes)))
             for q in selected:
                 q.shown_date = today
@@ -49,8 +65,32 @@ def create_quote(data: QuoteCreate, db: Session = Depends(get_db)):
 
 # --- Notes ---
 @router.get("/notes", response_model=list[NoteOut])
-def list_notes(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-    return db.query(Note).order_by(Note.created_at.desc()).offset(skip).limit(limit).all()
+def list_notes(
+    skip: int = 0,
+    limit: int = 50,
+    tag: str = "",
+    search: str = "",
+    db: Session = Depends(get_db),
+):
+    query = db.query(Note)
+    if tag:
+        query = query.filter(Note.tags.contains(tag))
+    if search:
+        query = query.filter(Note.content.contains(search))
+    return query.order_by(Note.created_at.desc()).offset(skip).limit(limit).all()
+
+
+@router.get("/notes/tags")
+def list_note_tags(db: Session = Depends(get_db)):
+    """Get all unique tags from notes."""
+    notes = db.query(Note).filter(Note.tags != "").all()
+    all_tags = set()
+    for note in notes:
+        for tag in note.tags.split(","):
+            tag = tag.strip()
+            if tag:
+                all_tags.add(tag)
+    return {"tags": sorted(all_tags)}
 
 
 @router.post("/notes", response_model=NoteOut)
@@ -61,10 +101,24 @@ def create_note(data: NoteCreate, db: Session = Depends(get_db)):
     if data.mood and data.mood != "neutral":
         mood_record = MoodRecord(
             mood=data.mood,
+            intensity=data.intensity if hasattr(data, 'intensity') else 3,
             date=date.today(),
             note=data.content[:100],
         )
         db.add(mood_record)
+    db.commit()
+    db.refresh(note)
+    return note
+
+
+@router.patch("/notes/{note_id}", response_model=NoteOut)
+def update_note(note_id: int, data: NoteUpdate, db: Session = Depends(get_db)):
+    note = db.query(Note).filter(Note.id == note_id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(note, key, value)
     db.commit()
     db.refresh(note)
     return note
@@ -95,7 +149,7 @@ def get_mood_heatmap(days: int = 30, db: Session = Depends(get_db)):
 
 @router.post("/mood", response_model=MoodRecordOut)
 def create_mood_record(data: MoodRecordCreate, db: Session = Depends(get_db)):
-    record = MoodRecord(mood=data.mood, note=data.note, date=date.today())
+    record = MoodRecord(mood=data.mood, intensity=data.intensity, note=data.note, date=date.today())
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -124,10 +178,27 @@ def analyze_quote_endpoint(quote_id: int, db: Session = Depends(get_db)):
 
 # --- Tarot ---
 @router.get("/tarot", response_model=TarotCard)
-def draw_tarot():
-    """Draw a random tarot card."""
-    from app.services.tarot import draw_card
-    return draw_card()
+def draw_tarot(mood: str = "", db: Session = Depends(get_db)):
+    """Draw a random tarot card with optional mood-based personalized reading."""
+    from app.services.tarot import draw_card, get_tarot_reading
+
+    card = draw_card()
+
+    # If mood not provided, try to get from recent mood record
+    if not mood:
+        recent_mood = db.query(MoodRecord).order_by(MoodRecord.date.desc()).first()
+        if recent_mood:
+            mood = recent_mood.mood
+
+    # Generate personalized reading
+    if mood:
+        try:
+            reading = get_tarot_reading(card.name, card.is_reversed, mood)
+            card.personalized_reading = reading
+        except Exception:
+            pass
+
+    return card
 
 
 # --- AI Generate Quotes ---

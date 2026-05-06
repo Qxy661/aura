@@ -32,6 +32,8 @@ class Article(Base):
     paper_chat_history = Column(Text, default="")  # 论文对话历史 JSON
     full_text = Column(Text, default="")  # PDF 全文提取
     is_saved = Column(Boolean, default=False)  # 收藏标记
+    is_read = Column(Boolean, default=False)  # 已读标记
+    structured_analysis = Column(Text, default="")  # 结构化深度分析 JSON
     tags = Column(String(500), default="")  # 逗号分隔的标签
     folder = Column(String(200), default="")  # 文件夹分类
     notes = Column(Text, default="")  # 用户 Markdown 笔记

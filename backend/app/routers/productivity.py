@@ -200,7 +200,7 @@ def generate_daily_review_endpoint(db: Session = Depends(get_db)):
     """Generate cross-module daily review: papers + holdings + notes + todos."""
     from app.models.research import Article
     from app.models.wealth import Holding
-    from app.models.muse import Note
+    from app.models.muse import Note, MoodRecord
     from app.services.llm_service import generate_daily_review
     from datetime import datetime, timedelta
 
@@ -213,7 +213,7 @@ def generate_daily_review_endpoint(db: Session = Depends(get_db)):
         .limit(5)
         .all()
     )
-    article_data = [{"title": a.title} for a in articles]
+    article_data = [{"title": a.title, "summary": (a.summary or "")[:100]} for a in articles]
 
     holdings = db.query(Holding).all()
     holding_data = [
@@ -229,6 +229,15 @@ def generate_daily_review_endpoint(db: Session = Depends(get_db)):
         .all()
     )
     note_data = [{"content": n.content, "mood": n.mood or ""} for n in notes]
+
+    # Fetch recent mood records for cross-module correlation
+    moods = (
+        db.query(MoodRecord)
+        .order_by(MoodRecord.date.desc())
+        .limit(7)
+        .all()
+    )
+    mood_data = [{"mood": m.mood, "intensity": m.intensity or 3, "date": str(m.date)} for m in moods]
 
     todos = (
         db.query(SmartTodo)
@@ -246,7 +255,7 @@ def generate_daily_review_endpoint(db: Session = Depends(get_db)):
     ]
 
     try:
-        review = generate_daily_review(article_data, holding_data, note_data, todo_data)
+        review = generate_daily_review(article_data, holding_data, note_data, todo_data, mood_data)
         return {"review": review, "date": date.today().isoformat()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Daily review failed: {str(e)}")

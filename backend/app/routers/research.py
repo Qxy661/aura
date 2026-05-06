@@ -41,6 +41,7 @@ def update_field(field_id: int, data: ResearchFieldUpdate, db: Session = Depends
 @router.get("/articles", response_model=ArticleListOut)
 def list_articles(
     saved_only: bool = False,
+    unread_only: bool = False,
     source: Optional[str] = None,
     folder: Optional[str] = None,
     tag: Optional[str] = None,
@@ -55,6 +56,8 @@ def list_articles(
     query = db.query(Article)
     if saved_only:
         query = query.filter(Article.is_saved == True)
+    if unread_only:
+        query = query.filter(Article.is_read == False)
     if source:
         query = query.filter(Article.source == source)
     if folder:
@@ -469,7 +472,12 @@ def generate_literature_review_endpoint(
         raise HTTPException(status_code=400, detail="No articles with summaries found")
 
     article_data = [
-        {"title": a.title, "summary": a.summary or a.abstract[:200]}
+        {
+            "title": a.title,
+            "summary": a.summary or a.abstract[:200],
+            "key_points": a.key_points or "",
+            "abstract": a.abstract[:300] if a.abstract else "",
+        }
         for a in articles
     ]
 
@@ -478,3 +486,29 @@ def generate_literature_review_endpoint(
         return {"review": review, "article_count": len(articles)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Review generation failed: {str(e)}")
+
+
+# --- Structured Deep Analysis ---
+@router.post("/articles/{article_id}/analyze-structured")
+def analyze_article_structured(article_id: int, db: Session = Depends(get_db)):
+    """Generate structured deep analysis for a paper."""
+    from app.services.llm_service import analyze_paper_structured
+
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    try:
+        result = analyze_paper_structured(
+            article.title,
+            article.abstract or "",
+            article.summary or "",
+            article.key_points or "",
+        )
+        import json
+        article.structured_analysis = json.dumps(result, ensure_ascii=False)
+        db.commit()
+        db.refresh(article)
+        return {"analysis": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")

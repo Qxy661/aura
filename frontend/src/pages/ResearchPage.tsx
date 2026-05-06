@@ -10,7 +10,7 @@ import { ResearchSuggestions } from "@/components/research/ResearchSuggestions";
 import { DailyBriefCard } from "@/components/productivity/DailyBriefCard";
 import { LiteratureReviewCard } from "@/components/research/LiteratureReviewCard";
 import { ListSkeleton } from "@/components/ui/Skeleton";
-import { RefreshCw, Bookmark, Search, Folder, Tag, Download, SlidersHorizontal, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { RefreshCw, Bookmark, Search, Folder, Tag, Download, SlidersHorizontal, Sparkles, ChevronDown, ChevronUp, EyeOff } from "lucide-react";
 
 interface Article {
   id: number;
@@ -24,6 +24,8 @@ interface Article {
   relevance_score: number;
   user_relevance_score: number;
   is_saved: boolean;
+  is_read: boolean;
+  structured_analysis: string | null;
   tags: string;
   folder: string;
   notes: string;
@@ -54,6 +56,7 @@ interface DailyBrief {
 export default function ResearchPage() {
   const { showSuccess, showError, showInfo, ToastContainer } = useToast();
   const [savedOnly, setSavedOnly] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -89,13 +92,13 @@ export default function ResearchPage() {
 
   const { data, refetch, loading: articlesLoading } = useApi<ArticleList>(
     () => {
-      let url = `/research/articles?saved_only=${savedOnly}&limit=50&sort_by=${sortBy}`;
+      let url = `/research/articles?saved_only=${savedOnly}&unread_only=${unreadOnly}&limit=50&sort_by=${sortBy}`;
       if (selectedFolder) url += `&folder=${encodeURIComponent(selectedFolder)}`;
       if (selectedTag) url += `&tag=${encodeURIComponent(selectedTag)}`;
       if (searchQuery.trim()) url += `&q=${encodeURIComponent(searchQuery.trim())}`;
       return api.get(url);
     },
-    [savedOnly, selectedFolder, selectedTag, searchQuery, sortBy]
+    [savedOnly, unreadOnly, selectedFolder, selectedTag, searchQuery, sortBy]
   );
 
   const handleFieldSelect = async (fieldId: number) => {
@@ -230,6 +233,12 @@ export default function ResearchPage() {
           className={`tag text-xs cursor-pointer transition-all ${savedOnly ? "tag-primary" : ""}`}
         >
           <Bookmark size={10} /> 已收藏
+        </button>
+        <button
+          onClick={() => setUnreadOnly(!unreadOnly)}
+          className={`tag text-xs cursor-pointer transition-all ${unreadOnly ? "tag-primary" : ""}`}
+        >
+          <EyeOff size={10} /> 未读
         </button>
         {selectedFolder && (
           <button
