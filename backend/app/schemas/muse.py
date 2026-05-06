@@ -28,6 +28,14 @@ class NoteCreate(BaseModel):
     content: str
     quote_id: Optional[int] = None
     mood: str = "neutral"
+    intensity: int = 3
+    tags: str = ""
+
+
+class NoteUpdate(BaseModel):
+    content: Optional[str] = None
+    mood: Optional[str] = None
+    tags: Optional[str] = None
 
 
 class NoteOut(BaseModel):
@@ -35,7 +43,9 @@ class NoteOut(BaseModel):
     content: str
     quote_id: Optional[int]
     mood: str
+    tags: str = ""
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -43,12 +53,14 @@ class NoteOut(BaseModel):
 
 class MoodRecordCreate(BaseModel):
     mood: str
+    intensity: int = 3
     note: str = ""
 
 
 class MoodRecordOut(BaseModel):
     id: int
     mood: str
+    intensity: int = 3
     date: date
     note: str
     created_at: datetime
@@ -62,3 +74,4 @@ class TarotCard(BaseModel):
     meaning: str
     image_url: str
     is_reversed: bool
+    personalized_reading: str = ""

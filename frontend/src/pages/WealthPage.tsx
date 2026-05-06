@@ -15,7 +15,7 @@ import { ListSkeleton } from "@/components/ui/Skeleton";
 import { PieChart } from "@/components/charts/PieChart";
 import { HeatMap } from "@/components/charts/HeatMap";
 import { NumberRoller } from "@/components/wealth/NumberRoller";
-import { Plus, TrendingUp, TrendingDown, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, RefreshCw, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
 import { MiniBarChart } from "@/components/charts/MiniBarChart";
 
 interface Holding {
@@ -98,6 +98,10 @@ export default function WealthPage() {
   const [activeTab, setActiveTab] = useState<"holdings" | "insights" | "reports">("holdings");
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [showCharts, setShowCharts] = useState(true);
+  const [sortBy, setSortBy] = useState<"created_at" | "profit_pct" | "market_value" | "name">("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [filterType, setFilterType] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const deleteHolding = async (id: number) => {
     try {
@@ -115,6 +119,41 @@ export default function WealthPage() {
     { key: "insights" as const, label: "观点", emoji: "💬" },
     { key: "reports" as const, label: "复盘", emoji: "📝" },
   ];
+
+  const assetTypes = [
+    { key: null, label: "全部" },
+    { key: "fund", label: "基金" },
+    { key: "stock", label: "股票" },
+    { key: "us_stock", label: "美股" },
+    { key: "crypto", label: "加密" },
+  ];
+
+  const sortOptions = [
+    { key: "created_at" as const, label: "添加时间" },
+    { key: "profit_pct" as const, label: "盈亏比例" },
+    { key: "market_value" as const, label: "市值" },
+    { key: "name" as const, label: "名称" },
+  ];
+
+  // Filter and sort holdings client-side
+  const filteredHoldings = (holdings ?? [])
+    .filter((h) => !filterType || h.asset_type === filterType)
+    .sort((a, b) => {
+      if (sortBy === "name") {
+        return sortOrder === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      }
+      if (sortBy === "created_at") {
+        return sortOrder === "asc"
+          ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      // For profit_pct and market_value, use portfolio data
+      const aData = portfolio?.holdings.find((ph) => ph.id === a.id);
+      const bData = portfolio?.holdings.find((ph) => ph.id === b.id);
+      const aVal = sortBy === "profit_pct" ? (aData?.profit_pct ?? 0) : (aData?.market_value ?? 0);
+      const bVal = sortBy === "profit_pct" ? (bData?.profit_pct ?? 0) : (bData?.market_value ?? 0);
+      return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+    });
 
   return (
     <div className="space-y-5 fade-in-up">
@@ -257,9 +296,57 @@ export default function WealthPage() {
 
           <OcrUploader onImported={() => { refetchHoldings(); refetchPortfolio(); showSuccess("持仓已导入"); }} onError={showError} />
 
+          {/* Sort & Filter */}
+          {holdings && holdings.length > 0 && (
+            <div className="cute-card p-3 space-y-2">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--color-accent-foreground)]"
+              >
+                <SlidersHorizontal size={12} /> 排序与筛选 {showFilters ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </button>
+              {showFilters && (
+                <div className="space-y-2 fade-in-up">
+                  <div className="flex gap-1.5 flex-wrap">
+                    {assetTypes.map((t) => (
+                      <button
+                        key={t.key ?? "all"}
+                        onClick={() => setFilterType(t.key)}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all border ${
+                          filterType === t.key
+                            ? "border-[var(--color-primary)] bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+                            : "border-transparent bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                      className="cute-input text-[10px] py-1.5 flex-1"
+                    >
+                      {sortOptions.map((o) => (
+                        <option key={o.key} value={o.key}>{o.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                      className="btn-soft text-[10px] px-2.5 py-1.5"
+                    >
+                      {sortOrder === "asc" ? "↑ 升序" : "↓ 降序"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {holdingsLoading ? (
             <ListSkeleton count={2} />
-          ) : (holdings ?? []).length === 0 && !showAdd ? (
+          ) : filteredHoldings.length === 0 && !showAdd ? (
             <div className="cute-card p-8 text-center">
               <div className="text-4xl mb-3">🐶</div>
               <p className="text-sm text-[var(--color-muted-foreground)] font-medium">还没有持仓记录</p>
@@ -269,7 +356,7 @@ export default function WealthPage() {
             </div>
           ) : (
             <>
-              {(holdings ?? []).map((h, i) => (
+              {filteredHoldings.map((h, i) => (
                 <HoldingCard
                   key={h.id}
                   holding={h}

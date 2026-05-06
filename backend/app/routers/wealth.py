@@ -15,8 +15,33 @@ router = APIRouter(prefix="/api/wealth", tags=["wealth"])
 
 # --- Holdings ---
 @router.get("/holdings", response_model=list[HoldingOut])
-def list_holdings(db: Session = Depends(get_db)):
-    return db.query(Holding).order_by(Holding.created_at.desc()).all()
+def list_holdings(
+    sort_by: str = "created_at",
+    order: str = "desc",
+    asset_type: str = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(Holding)
+    if asset_type:
+        query = query.filter(Holding.asset_type == asset_type)
+
+    sort_column = getattr(Holding, sort_by, Holding.created_at)
+    if order == "asc":
+        query = query.order_by(sort_column.asc())
+    else:
+        query = query.order_by(sort_column.desc())
+
+    return query.all()
+
+
+@router.get("/search")
+def search_holdings(q: str = "", limit: int = 10):
+    """Search funds/stocks by name or code."""
+    from app.services.market_service import search_funds
+    if not q or len(q) < 2:
+        return {"results": []}
+    results = search_funds(q, limit)
+    return {"results": results}
 
 
 @router.post("/holdings", response_model=HoldingOut)
@@ -136,6 +161,9 @@ def get_portfolio(db: Session = Depends(get_db)):
         total_cost += cost_value
         total_market += market_value
 
+        change_pct = market.get("change_pct", market.get("estimated_change_pct", 0)) if market else 0
+        daily_pnl = round(market_value * change_pct / 100, 2) if market_value > 0 else 0
+
         results.append({
             "id": h.id,
             "name": market.get("name", h.name) if market else h.name,
@@ -148,7 +176,8 @@ def get_portfolio(db: Session = Depends(get_db)):
             "cost_value": round(cost_value, 2),
             "profit": round(profit, 2),
             "profit_pct": round(profit_pct, 2),
-            "change_pct": market.get("change_pct", market.get("estimated_change_pct", 0)) if market else 0,
+            "change_pct": change_pct,
+            "daily_pnl": daily_pnl,
         })
 
     total_profit = total_market - total_cost

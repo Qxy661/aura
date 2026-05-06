@@ -17,8 +17,9 @@ def fetch_semantic_scholar(db: Session, keywords: str = "", limit: int = 20) -> 
     if not keywords:
         keywords = "deep learning,computer vision"
 
-    # Take first keyword group for search
-    query = keywords.split(",")[0].strip()
+    # Combine up to 5 keywords for broader search
+    keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
+    query = " ".join(keyword_list[:5])
     if len(query) > 200:
         query = query[:200]
 

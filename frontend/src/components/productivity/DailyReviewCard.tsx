@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { CalendarDays, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 
 export function DailyReviewCard() {
   const [review, setReview] = useState<string | null>(null);
@@ -54,8 +55,8 @@ export function DailyReviewCard() {
       )}
 
       {review && expanded && (
-        <div className="p-3 rounded-xl bg-[var(--color-muted)] text-xs leading-relaxed whitespace-pre-wrap fade-in-up">
-          {review}
+        <div className="p-3 rounded-xl bg-[var(--color-muted)] fade-in-up">
+          <MarkdownRenderer content={review} />
         </div>
       )}
     </div>

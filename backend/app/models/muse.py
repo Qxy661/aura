@@ -24,7 +24,9 @@ class Note(Base):
     content = Column(Text, nullable=False)  # 闪念笔记内容
     quote_id = Column(Integer, nullable=True)  # 关联的金句 ID（可选）
     mood = Column(String(50), default="neutral")  # 心情标签
+    tags = Column(String(500), default="")  # 逗号分隔的标签
     created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 class MoodRecord(Base):
@@ -32,6 +34,7 @@ class MoodRecord(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     mood = Column(String(50), nullable=False)  # happy, sad, calm, anxious, inspired
+    intensity = Column(Integer, default=3)  # 1-5 scale
     date = Column(Date, nullable=False)
     note = Column(Text, default="")
     created_at = Column(DateTime, server_default=func.now())

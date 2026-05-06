@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useApi } from "@/hooks/useApi";
 import { useToast } from "@/hooks/useToast";
 import { api } from "@/lib/api";
@@ -16,7 +16,7 @@ import { DailyReviewCard } from "@/components/productivity/DailyReviewCard";
 import { VoiceInput } from "@/components/ui/VoiceInput";
 import { ListSkeleton } from "@/components/ui/Skeleton";
 import { scheduleTodoReminder } from "@/lib/notifications";
-import { Shuffle, PenLine, Trash2, Plus, Sparkles, Wand2, Loader2 } from "lucide-react";
+import { Shuffle, PenLine, Trash2, Plus, Sparkles, Wand2, Loader2, Check, X, Search, Tag } from "lucide-react";
 
 interface Quote {
   id: number;
@@ -32,6 +32,7 @@ interface Note {
   content: string;
   quote_id: number | null;
   mood: string;
+  tags: string;
   created_at: string;
 }
 
@@ -65,9 +66,35 @@ export default function MusePage() {
   const { data: quotes, refetch: refetchQuotes } = useApi<Quote[]>(
     () => api.get("/muse/quotes/today")
   );
-  const { data: notes, refetch: refetchNotes, loading: notesLoading } = useApi<Note[]>(
-    () => api.get("/muse/notes")
-  );
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterTag, setFilterTag] = useState("");
+  const [allTags, setAllTags] = useState<string[]>([]);
+
+  const fetchNotes = useCallback(async () => {
+    setNotesLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (searchQuery) params.set("search", searchQuery);
+      if (filterTag) params.set("tag", filterTag);
+      const qs = params.toString();
+      const result = await api.get<Note[]>(`/muse/notes${qs ? "?" + qs : ""}`);
+      setNotes(result);
+    } catch {
+      // ignore
+    } finally {
+      setNotesLoading(false);
+    }
+  }, [searchQuery, filterTag]);
+
+  useEffect(() => {
+    fetchNotes();
+  }, [fetchNotes]);
+
+  useEffect(() => {
+    api.get<{ tags: string[] }>("/muse/notes/tags").then((res) => setAllTags(res.tags)).catch(() => {});
+  }, []);
   const { data: moodData } = useApi<MoodRecord[]>(
     () => api.get("/muse/mood/heatmap?days=30")
   );
@@ -79,10 +106,16 @@ export default function MusePage() {
   );
 
   const [noteText, setNoteText] = useState("");
+  const [noteTags, setNoteTags] = useState("");
   const [selectedMood, setSelectedMood] = useState("neutral");
+  const [moodIntensity, setMoodIntensity] = useState(3);
   const [relatedQuoteId, setRelatedQuoteId] = useState<number | null>(null);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [confirmDeleteNote, setConfirmDeleteNote] = useState<number | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editMood, setEditMood] = useState("neutral");
+  const [editTags, setEditTags] = useState("");
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [quoteForm, setQuoteForm] = useState({ content: "", author: "", book_title: "" });
   const [generating, setGenerating] = useState(false);
@@ -93,9 +126,32 @@ export default function MusePage() {
     try {
       await api.del(`/muse/notes/${id}`);
       showSuccess("已删除");
-      refetchNotes();
+      fetchNotes();
     } catch (e) {
       showError(e instanceof Error ? e.message : "删除失败");
+    }
+  };
+
+  const startEditNote = (note: Note) => {
+    setEditingNoteId(note.id);
+    setEditContent(note.content);
+    setEditMood(note.mood);
+    setEditTags(note.tags || "");
+  };
+
+  const saveEditNote = async () => {
+    if (!editingNoteId || !editContent.trim()) return;
+    try {
+      await api.patch(`/muse/notes/${editingNoteId}`, {
+        content: editContent,
+        mood: editMood,
+        tags: editTags,
+      });
+      setEditingNoteId(null);
+      showSuccess("已更新");
+      fetchNotes();
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "更新失败");
     }
   };
 
@@ -105,14 +161,18 @@ export default function MusePage() {
       await api.post("/muse/notes", {
         content: noteText,
         mood: selectedMood,
+        intensity: moodIntensity,
         quote_id: relatedQuoteId,
+        tags: noteTags,
       });
       setNoteText("");
+      setNoteTags("");
       setSelectedMood("neutral");
+      setMoodIntensity(3);
       setRelatedQuoteId(null);
       setShowNoteInput(false);
       showSuccess("灵感已记录");
-      refetchNotes();
+      fetchNotes();
     } catch (e) {
       showError(e instanceof Error ? e.message : "记录失败");
     }
@@ -384,6 +444,20 @@ export default function MusePage() {
               </button>
             ))}
           </div>
+          {selectedMood !== "neutral" && (
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-[var(--color-muted-foreground)]">强度</span>
+              <input
+                type="range"
+                min={1}
+                max={5}
+                value={moodIntensity}
+                onChange={(e) => setMoodIntensity(parseInt(e.target.value))}
+                className="flex-1 accent-[var(--color-primary)]"
+              />
+              <span className="text-[10px] font-semibold text-[var(--color-accent-foreground)] w-4 text-center">{moodIntensity}</span>
+            </div>
+          )}
           <VoiceInput onResult={(text) => setNoteText((prev) => prev ? prev + " " + text : text)} placeholder="语音记录灵感..." />
           <textarea
             placeholder="灵感一闪，快记下来..."
@@ -392,6 +466,15 @@ export default function MusePage() {
             rows={3}
             className="cute-input resize-none"
           />
+          <div className="flex items-center gap-2">
+            <Tag size={12} className="text-[var(--color-muted-foreground)] shrink-0" />
+            <input
+              placeholder="标签（用逗号分隔，如：读书,灵感）"
+              value={noteTags}
+              onChange={(e) => setNoteTags(e.target.value)}
+              className="cute-input text-xs flex-1"
+            />
+          </div>
           <button onClick={addNote} className="btn-primary w-full text-xs">🐾 记录此刻</button>
         </div>
       )}
@@ -437,34 +520,140 @@ export default function MusePage() {
 
       {/* Recent Notes */}
       <div className="cute-card p-4 space-y-3">
-        <p className="text-xs font-bold text-[var(--color-muted-foreground)]">🐾 最近的闪念</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-bold text-[var(--color-muted-foreground)]">🐾 最近的闪念</p>
+        </div>
+
+        {/* Search and filter */}
+        <div className="space-y-2">
+          <div className="relative">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]" />
+            <input
+              placeholder="搜索闪念..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="cute-input text-xs pl-7 w-full"
+            />
+          </div>
+          {allTags.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap">
+              <button
+                onClick={() => setFilterTag("")}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all border ${
+                  !filterTag
+                    ? "border-[var(--color-primary)] bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+                    : "border-transparent bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"
+                }`}
+              >
+                全部
+              </button>
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setFilterTag(filterTag === tag ? "" : tag)}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all border ${
+                    filterTag === tag
+                      ? "border-[var(--color-primary)] bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+                      : "border-transparent bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {notesLoading ? (
           <ListSkeleton count={3} />
-        ) : (notes ?? []).length === 0 ? (
+        ) : (notes).length === 0 ? (
           <div className="text-center py-6">
             <PuppyMascot size={40} mood="sleeping" className="mx-auto" />
             <p className="text-xs text-[var(--color-muted-foreground)] mt-2">还没有记录，写下第一条闪念吧</p>
           </div>
         ) : (
-          (notes ?? []).slice(0, 10).map((n, i) => (
+          (notes).slice(0, 10).map((n, i) => (
             <div
               key={n.id}
               className="p-3 rounded-xl bg-[var(--color-muted)] fade-in-up group relative"
               style={{ animationDelay: `${i * 0.05}s` }}
             >
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm">{MOODS.find((m) => m.key === n.mood)?.emoji ?? "😶"}</span>
-                <span className="text-[10px] text-[var(--color-muted-foreground)] font-medium">
-                  {new Date(n.created_at).toLocaleString()}
-                </span>
-                <button
-                  onClick={() => setConfirmDeleteNote(n.id)}
-                  className="ml-auto p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-background)] transition-all"
-                >
-                  <Trash2 size={12} className="text-[var(--color-destructive)]" />
-                </button>
-              </div>
-              <p className="text-xs leading-relaxed">{n.content}</p>
+              {editingNoteId === n.id ? (
+                <div className="space-y-2">
+                  <div className="flex gap-1.5 flex-wrap">
+                    {MOODS.map((m) => (
+                      <button
+                        key={m.key}
+                        onClick={() => setEditMood(m.key)}
+                        className={`px-2 py-1 rounded-full text-[10px] font-semibold transition-all border ${
+                          editMood === m.key
+                            ? "border-[var(--color-primary)] bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+                            : "border-transparent bg-[var(--color-background)] text-[var(--color-muted-foreground)]"
+                        }`}
+                      >
+                        {m.emoji}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    rows={2}
+                    className="cute-input resize-none text-xs w-full"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Tag size={11} className="text-[var(--color-muted-foreground)] shrink-0" />
+                    <input
+                      placeholder="标签（逗号分隔）"
+                      value={editTags}
+                      onChange={(e) => setEditTags(e.target.value)}
+                      className="cute-input text-[10px] flex-1"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => setEditingNoteId(null)} className="p-1.5 rounded-lg hover:bg-[var(--color-background)] transition-colors">
+                      <X size={14} className="text-[var(--color-muted-foreground)]" />
+                    </button>
+                    <button onClick={saveEditNote} className="p-1.5 rounded-lg hover:bg-[var(--color-background)] transition-colors">
+                      <Check size={14} className="text-green-600" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm">{MOODS.find((m) => m.key === n.mood)?.emoji ?? "😶"}</span>
+                    <span className="text-[10px] text-[var(--color-muted-foreground)] font-medium">
+                      {new Date(n.created_at).toLocaleString()}
+                    </span>
+                    <button
+                      onClick={() => startEditNote(n)}
+                      className="ml-auto p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-background)] transition-all"
+                    >
+                      <PenLine size={12} className="text-[var(--color-muted-foreground)]" />
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteNote(n.id)}
+                      className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-background)] transition-all"
+                    >
+                      <Trash2 size={12} className="text-[var(--color-destructive)]" />
+                    </button>
+                  </div>
+                  <p className="text-xs leading-relaxed">{n.content}</p>
+                  {n.tags && (
+                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                      {n.tags.split(",").map((tag, ti) => {
+                        const t = tag.trim();
+                        if (!t) return null;
+                        return (
+                          <span key={ti} className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-accent)] text-[var(--color-accent-foreground)]">
+                            {t}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           ))
         )}

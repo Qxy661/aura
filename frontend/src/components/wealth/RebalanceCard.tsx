@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { Scale, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 
 export function RebalanceCard() {
   const [suggestions, setSuggestions] = useState<string | null>(null);
@@ -54,8 +55,8 @@ export function RebalanceCard() {
       )}
 
       {suggestions && expanded && (
-        <div className="p-3 rounded-xl bg-[var(--color-muted)] text-xs leading-relaxed whitespace-pre-wrap fade-in-up">
-          {suggestions}
+        <div className="p-3 rounded-xl bg-[var(--color-muted)] fade-in-up">
+          <MarkdownRenderer content={suggestions} />
         </div>
       )}
     </div>

@@ -20,6 +20,7 @@ interface MarketData {
   profit: number;
   profit_pct: number;
   change_pct: number;
+  daily_pnl?: number;
 }
 
 interface HoldingCardProps {
@@ -163,6 +164,11 @@ export function HoldingCard({ holding, index, onDelete, onUpdated, onError, mark
             <p className={`text-[10px] ${marketData.profit >= 0 ? "text-red-400" : "text-green-400"}`}>
               {marketData.profit_pct >= 0 ? "+" : ""}{marketData.profit_pct}%
             </p>
+            {marketData.change_pct !== 0 && (
+              <p className={`text-[10px] mt-0.5 ${marketData.change_pct >= 0 ? "text-red-400" : "text-green-400"}`}>
+                今日 {marketData.change_pct >= 0 ? "+" : ""}{marketData.change_pct}%
+              </p>
+            )}
           </div>
         </div>
       )}
