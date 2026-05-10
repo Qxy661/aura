@@ -50,7 +50,7 @@ export function WatchlistCard({ onSuccess, onError, onConvert }: Props) {
   const [convertId, setConvertId] = useState<number | null>(null);
   const [convertPrice, setConvertPrice] = useState("");
   const [convertShares, setConvertShares] = useState("");
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Debounced search
   useEffect(() => {
@@ -62,7 +62,7 @@ export function WatchlistCard({ onSuccess, onError, onConvert }: Props) {
     searchTimer.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await api.get(`/wealth/search?q=${encodeURIComponent(searchQuery.trim())}&limit=6`);
+        const res = await api.get(`/wealth/search?q=${encodeURIComponent(searchQuery.trim())}&limit=6`) as SearchResult[];
         setSearchResults(res);
       } catch {
         setSearchResults([]);

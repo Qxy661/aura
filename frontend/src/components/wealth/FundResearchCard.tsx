@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { SparkLine } from "@/components/charts/SparkLine";
-import { Search, Star, ShoppingCart, TrendingUp, TrendingDown, Activity, X } from "lucide-react";
+import { Search, Star, ShoppingCart, TrendingUp, Activity, X } from "lucide-react";
 
 interface SearchResult {
   name: string;
@@ -51,7 +51,7 @@ export function FundResearchCard({ onSuccess, onError, onWatchlist, onBuy }: Pro
   const [showBuyForm, setShowBuyForm] = useState(false);
   const [buyPrice, setBuyPrice] = useState("");
   const [buyShares, setBuyShares] = useState("");
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Debounced search
   useEffect(() => {
@@ -63,8 +63,8 @@ export function FundResearchCard({ onSuccess, onError, onWatchlist, onBuy }: Pro
     timer.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await api.get(`/wealth/search?q=${encodeURIComponent(query.trim())}&limit=8`);
-        setResults(res.filter((r: SearchResult) => r.type === "基金" || r.type === "" || r.type.includes("混合") || r.type.includes("股票") || r.type.includes("债券") || r.type.includes("指数")));
+        const res = await api.get(`/wealth/search?q=${encodeURIComponent(query.trim())}&limit=8`) as SearchResult[];
+        setResults(res.filter((r) => r.type === "基金" || r.type === "" || r.type.includes("混合") || r.type.includes("股票") || r.type.includes("债券") || r.type.includes("指数")));
       } catch {
         setResults([]);
       } finally {
@@ -78,7 +78,7 @@ export function FundResearchCard({ onSuccess, onError, onWatchlist, onBuy }: Pro
     setResults([]);
     setQuery("");
     try {
-      const detail = await api.get(`/wealth/fund-research/${code}`);
+      const detail = await api.get(`/wealth/fund-research/${code}`) as FundDetail;
       setSelected(detail);
     } catch {
       onError?.("基金详情获取失败");

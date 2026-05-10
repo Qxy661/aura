@@ -73,9 +73,9 @@ export function AlertManagerCard({ holdings, onSuccess, onError }: Props) {
   const checkAlerts = async () => {
     setChecking(true);
     try {
-      const res = await api.post("/wealth/alerts/check");
+      const res = await api.post("/wealth/alerts/check") as { checked: number; triggered: { holding_name: string }[] };
       if (res.triggered && res.triggered.length > 0) {
-        const names = res.triggered.map((t: { holding_name: string }) => t.holding_name).join("、");
+        const names = res.triggered.map((t) => t.holding_name).join("、");
         onSuccess?.(`触发了 ${res.triggered.length} 个提醒: ${names}`);
         refetch();
       } else {

@@ -1,6 +1,5 @@
 import { useApi } from "@/hooks/useApi";
 import { api } from "@/lib/api";
-import { Radio } from "lucide-react";
 
 interface IndexItem {
   name: string;

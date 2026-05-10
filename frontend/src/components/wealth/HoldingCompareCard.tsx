@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { api } from "@/lib/api";
-import { TrendingUp, TrendingDown, GitCompareArrows } from "lucide-react";
+import { GitCompareArrows } from "lucide-react";
 
 interface PortfolioHolding {
   id: number;

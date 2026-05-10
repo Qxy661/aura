@@ -53,12 +53,12 @@ interface Props {
   currentNav?: number;
 }
 
-export function DcaCalculatorCard({ holdingName, holdingCode, currentNav }: Props) {
+export function DcaCalculatorCard({ holdingName, currentNav }: Props) {
   const [initial, setInitial] = useState(10000);
   const [monthly, setMonthly] = useState(2000);
   const [annualReturn, setAnnualReturn] = useState(8);
   const [years, setYears] = useState(5);
-  const [navStart, setNavStart] = useState(currentNav || 1);
+  const [navStart] = useState(currentNav || 1);
 
   const months = years * 12;
   const results = useMemo(

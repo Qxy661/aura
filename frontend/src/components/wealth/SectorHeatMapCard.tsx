@@ -28,7 +28,7 @@ interface SectorFlowData {
 
 export function SectorHeatMapCard() {
   const [flowType, setFlowType] = useState<"industry" | "concept">("industry");
-  const { data, loading, refetch } = useApi<SectorFlowData>(
+  const { data, loading } = useApi<SectorFlowData>(
     () => api.get(`/wealth/sector-flow?type=${flowType}&limit=50`)
   );
 

@@ -114,9 +114,9 @@ export default function WealthPage() {
   useEffect(() => {
     const checkOnLoad = async () => {
       try {
-        const res = await api.post("/wealth/alerts/check");
+        const res = await api.post("/wealth/alerts/check") as { triggered: { holding_name: string }[] };
         if (res.triggered && res.triggered.length > 0) {
-          const names = res.triggered.map((t: { holding_name: string }) => t.holding_name).join("、");
+          const names = res.triggered.map((t) => t.holding_name).join("、");
           showSuccess(`价格提醒触发: ${names}`);
         }
       } catch {

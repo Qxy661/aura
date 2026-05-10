@@ -15,7 +15,7 @@ export function PortfolioExportCard({ onSuccess, onError }: Props) {
   const generate = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/wealth/portfolio/export");
+      const res = await api.get("/wealth/portfolio/export") as { text: string };
       setText(res.text);
     } catch (e) {
       onError?.(e instanceof Error ? e.message : "生成失败");
