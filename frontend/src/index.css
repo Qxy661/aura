@@ -254,6 +254,23 @@ body {
   transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Gradient card for portfolio header */
+.gradient-card {
+  background: linear-gradient(135deg, #FFF3DC 0%, #FFE4B5 50%, #FFDAB9 100%);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 4px 16px rgba(245, 166, 35, 0.15);
+}
+
+/* Hide scrollbar for horizontal scroll areas */
+.scroll-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scroll-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .number-roll,

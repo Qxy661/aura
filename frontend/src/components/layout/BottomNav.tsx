@@ -2,10 +2,10 @@ import { NavLink } from "react-router-dom";
 import { Radar, TrendingUp, Sparkles, Settings } from "lucide-react";
 
 const navItems = [
-  { to: "/", icon: Radar, label: "科研", emoji: "🔬" },
-  { to: "/wealth", icon: TrendingUp, label: "财富", emoji: "💰" },
-  { to: "/muse", icon: Sparkles, label: "灵感", emoji: "✨" },
-  { to: "/settings", icon: Settings, label: "设置", emoji: "⚙️" },
+  { to: "/", icon: Radar, label: "科研" },
+  { to: "/wealth", icon: TrendingUp, label: "财富" },
+  { to: "/muse", icon: Sparkles, label: "灵感" },
+  { to: "/settings", icon: Settings, label: "设置" },
 ];
 
 export function BottomNav() {
@@ -27,7 +27,14 @@ export function BottomNav() {
           >
             {({ isActive }) => (
               <>
-                <span className="text-lg leading-none">{item.emoji}</span>
+                <item.icon
+                  size={18}
+                  className={
+                    isActive
+                      ? "text-[var(--color-accent-foreground)]"
+                      : "text-[var(--color-muted-foreground)]"
+                  }
+                />
                 <span
                   className={`text-[10px] font-bold tracking-wide ${
                     isActive

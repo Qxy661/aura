@@ -107,6 +107,72 @@ def _weekly_report():
         db.close()
 
 
+def _daily_market_summary():
+    """Daily market closing summary at 15:30 (after A股收盘 at 15:00)."""
+    from datetime import date
+    db = SessionLocal()
+    try:
+        from app.services.sector_flow_service import save_daily_snapshot, get_sector_flow_summary
+        from app.services.llm_service import generate_daily_market_summary
+        from app.models.wealth import DailyMarketSummary
+        import json
+
+        today = date.today().isoformat()
+
+        # Check if already generated
+        existing = db.query(DailyMarketSummary).filter(
+            DailyMarketSummary.summary_date == today
+        ).first()
+        if existing:
+            logger.info(f"Market summary for {today} already exists")
+            return
+
+        # Save snapshots
+        save_daily_snapshot(db, today)
+
+        # Get flow summaries
+        industry_summary = get_sector_flow_summary("industry")
+        concept_summary = get_sector_flow_summary("concept")
+
+        if "error" in industry_summary and "error" in concept_summary:
+            logger.warning("Cannot fetch sector flow data for daily summary")
+            return
+
+        # Generate AI summary
+        try:
+            summary_text = generate_daily_market_summary(
+                today, industry_summary, concept_summary
+            )
+        except Exception as e:
+            logger.warning(f"Daily market summary LLM failed: {e}")
+            return
+
+        # Save to DB
+        record = DailyMarketSummary(
+            summary_date=today,
+            summary_content=summary_text,
+            net_inflow_count=industry_summary.get("inflow_count", 0),
+            net_outflow_count=industry_summary.get("outflow_count", 0),
+            total_net_flow=industry_summary.get("net_flow", 0),
+            top_inflow_sectors=json.dumps(
+                [s["name"] for s in industry_summary.get("top_inflow", [])[:5]],
+                ensure_ascii=False,
+            ),
+            top_outflow_sectors=json.dumps(
+                [s["name"] for s in industry_summary.get("top_outflow", [])[:5]],
+                ensure_ascii=False,
+            ),
+        )
+        db.add(record)
+        db.commit()
+        logger.info(f"Daily market summary generated for {today}")
+    except Exception as e:
+        logger.warning(f"Daily market summary failed: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def _keepalive_ping():
     """Ping self to prevent Render free tier from sleeping."""
     import os
@@ -136,9 +202,12 @@ def setup_scheduler() -> BackgroundScheduler:
     # Weekly report on Monday at 9:00 AM
     scheduler.add_job(_weekly_report, "cron", day_of_week="mon", hour=9, minute=0, id="weekly_report")
 
+    # Daily market closing summary at 15:30 (after A股收盘)
+    scheduler.add_job(_daily_market_summary, "cron", hour=15, minute=30, id="daily_market_summary")
+
     # Keep-alive ping every 14 minutes (Render sleeps after 15min idle)
     scheduler.add_job(_keepalive_ping, "interval", minutes=14, id="keepalive")
 
     scheduler.start()
-    logger.info("Scheduler started: daily_fetch@08:00, daily_quotes@07:00, daily_backup@02:00, weekly_report@Mon 09:00, keepalive@14min")
+    logger.info("Scheduler started: daily_fetch@08:00, daily_quotes@07:00, daily_backup@02:00, weekly_report@Mon 09:00, market_summary@15:30, keepalive@14min")
     return scheduler

@@ -1,13 +1,11 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/useToast";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { MiniBarChart } from "@/components/charts/MiniBarChart";
-import {
-  ArrowLeft, TrendingUp, TrendingDown, Plus, Minus, Scale,
-} from "lucide-react";
+import { TrendingUp, TrendingDown, Plus, Minus, Scale, RefreshCw, Trash2 } from "lucide-react";
 
 interface HoldingDetail {
   holding: {
@@ -46,27 +44,40 @@ interface Benchmark {
   message?: string;
 }
 
+function safeNum(v: unknown, fallback = 0): number {
+  return typeof v === "number" && isFinite(v) ? v : fallback;
+}
+
 export default function HoldingDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { showSuccess, showError, ToastContainer } = useToast();
   const [detail, setDetail] = useState<HoldingDetail | null>(null);
   const [benchmark, setBenchmark] = useState<Benchmark | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [showTxForm, setShowTxForm] = useState(false);
   const [txForm, setTxForm] = useState({ tx_type: "buy", price: "", shares: "", note: "", tx_date: "" });
+  const [confirmDeleteTx, setConfirmDeleteTx] = useState<number | null>(null);
 
-  useEffect(() => {
+  const fetchData = async () => {
     if (!id) return;
     setLoading(true);
-    Promise.all([
-      api.get<HoldingDetail>(`/wealth/holdings/${id}/detail`),
-      api.get<Benchmark>(`/wealth/holdings/${id}/benchmark`).catch(() => null),
-    ])
-      .then(([d, b]) => { setDetail(d); setBenchmark(b); })
-      .catch(() => showError("加载失败"))
-      .finally(() => setLoading(false));
-  }, [id]);
+    setError(false);
+    try {
+      const [d, b] = await Promise.all([
+        api.get<HoldingDetail>(`/wealth/holdings/${id}/detail`),
+        api.get<Benchmark>(`/wealth/holdings/${id}/benchmark`).catch(() => null),
+      ]);
+      setDetail(d);
+      setBenchmark(b);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, [id]);
 
   const handleAddTx = async () => {
     if (!id || !txForm.price || !txForm.shares) return;
@@ -81,7 +92,6 @@ export default function HoldingDetailPage() {
       showSuccess("交易记录已添加");
       setShowTxForm(false);
       setTxForm({ tx_type: "buy", price: "", shares: "", note: "", tx_date: "" });
-      // Refresh
       const d = await api.get<HoldingDetail>(`/wealth/holdings/${id}/detail`);
       setDetail(d);
     } catch (e) {
@@ -92,9 +102,28 @@ export default function HoldingDetailPage() {
   if (loading) {
     return (
       <div className="space-y-4 fade-in-up">
-        <Skeleton className="h-8 w-1/2" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-24 w-full" />
+        <div className="flex items-center gap-3 mb-6">
+          <div className="h-8 w-8 rounded-lg bg-[var(--color-muted)] animate-pulse" />
+          <div className="space-y-1.5">
+            <div className="h-5 w-24 rounded bg-[var(--color-muted)] animate-pulse" />
+            <div className="h-3 w-16 rounded bg-[var(--color-muted)] animate-pulse" />
+          </div>
+        </div>
+        <div className="h-40 rounded-2xl bg-[var(--color-muted)] animate-pulse" />
+        <div className="h-20 rounded-2xl bg-[var(--color-muted)] animate-pulse" />
+        <div className="h-32 rounded-2xl bg-[var(--color-muted)] animate-pulse" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-16 space-y-3">
+        <p className="text-4xl">😢</p>
+        <p className="text-sm text-[var(--color-muted-foreground)]">加载失败，请稍后重试</p>
+        <button onClick={fetchData} className="btn-primary text-xs px-4 py-2">
+          <RefreshCw size={12} className="inline mr-1" /> 重试
+        </button>
       </div>
     );
   }
@@ -103,30 +132,38 @@ export default function HoldingDetailPage() {
     return (
       <div className="text-center py-16">
         <p className="text-sm text-[var(--color-muted-foreground)]">持仓不存在</p>
-        <button onClick={() => navigate("/wealth")} className="btn-primary text-xs mt-4 px-4 py-2">返回</button>
       </div>
     );
   }
 
   const h = detail.holding;
-  const isProfit = h.profit >= 0;
+  const isProfit = safeNum(h.profit) >= 0;
+  const canSubmit = txForm.price !== "" && txForm.shares !== "";
+
+  const handleDeleteTx = async (txId: number) => {
+    if (!id) return;
+    try {
+      await api.del(`/wealth/holdings/${id}/transactions/${txId}`);
+      showSuccess("交易记录已删除");
+      setConfirmDeleteTx(null);
+      const d = await api.get<HoldingDetail>(`/wealth/holdings/${id}/detail`);
+      setDetail(d);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "删除失败");
+    }
+  };
 
   return (
     <div className="space-y-4 fade-in-up">
-      <div className="flex items-center gap-2">
-        <button onClick={() => navigate("/wealth")} className="p-1.5 rounded-lg hover:bg-[var(--color-muted)]">
-          <ArrowLeft size={16} />
-        </button>
-        <PageHeader title={h.name} subtitle={h.code} />
-      </div>
+      <PageHeader title={h.name} subtitle={h.code} back />
 
       {/* Price & P&L */}
       <div className="cute-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-2xl font-bold">¥{h.current_price.toFixed(4)}</p>
-            <p className={`text-xs font-semibold ${h.change_pct >= 0 ? "text-red-500" : "text-green-500"}`}>
-              {h.change_pct >= 0 ? "+" : ""}{h.change_pct.toFixed(2)}% 今日
+            <p className="text-2xl font-bold">¥{safeNum(h.current_price).toFixed(4)}</p>
+            <p className={`text-xs font-semibold ${safeNum(h.change_pct) >= 0 ? "text-red-500" : "text-green-500"}`}>
+              {safeNum(h.change_pct) >= 0 ? "+" : ""}{safeNum(h.change_pct).toFixed(2)}% 今日
             </p>
           </div>
           <div className={`p-3 rounded-xl ${isProfit ? "bg-red-50" : "bg-green-50"}`}>
@@ -137,22 +174,22 @@ export default function HoldingDetailPage() {
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div className="p-2 rounded-lg bg-[var(--color-muted)]">
             <p className="text-[var(--color-muted-foreground)]">市值</p>
-            <p className="font-bold">¥{h.market_value.toLocaleString()}</p>
+            <p className="font-bold">¥{safeNum(h.market_value).toLocaleString()}</p>
           </div>
           <div className="p-2 rounded-lg bg-[var(--color-muted)]">
             <p className="text-[var(--color-muted-foreground)]">成本</p>
-            <p className="font-bold">¥{h.cost_value.toLocaleString()}</p>
+            <p className="font-bold">¥{safeNum(h.cost_value).toLocaleString()}</p>
           </div>
           <div className="p-2 rounded-lg bg-[var(--color-muted)]">
             <p className="text-[var(--color-muted-foreground)]">盈亏</p>
             <p className={`font-bold ${isProfit ? "text-red-500" : "text-green-500"}`}>
-              {isProfit ? "+" : ""}¥{h.profit.toFixed(2)}
+              {isProfit ? "+" : ""}¥{safeNum(h.profit).toFixed(2)}
             </p>
           </div>
           <div className="p-2 rounded-lg bg-[var(--color-muted)]">
             <p className="text-[var(--color-muted-foreground)]">收益率</p>
             <p className={`font-bold ${isProfit ? "text-red-500" : "text-green-500"}`}>
-              {isProfit ? "+" : ""}{h.profit_pct.toFixed(2)}%
+              {isProfit ? "+" : ""}{safeNum(h.profit_pct).toFixed(2)}%
             </p>
           </div>
         </div>
@@ -163,10 +200,10 @@ export default function HoldingDetailPage() {
         <div className="cute-card p-4 space-y-2">
           <p className="text-xs font-bold text-[var(--color-muted-foreground)]">📈 价格走势</p>
           <MiniBarChart
-            data={detail.price_history.map((p, i) => ({
-              label: `${i + 1}`,
+            data={detail.price_history.map((p) => ({
+              label: p.date ? new Date(p.date).toLocaleDateString("zh-CN", { month: "short", day: "numeric" }) : "",
               value: p.price,
-              color: p.price >= h.cost_price ? "#E85D4A" : "#6BBF59",
+              color: p.price >= safeNum(h.cost_price) ? "#E85D4A" : "#6BBF59",
             }))}
             height={80}
           />
@@ -183,25 +220,25 @@ export default function HoldingDetailPage() {
           <div className="grid grid-cols-3 gap-2 text-xs text-center">
             <div className="p-2 rounded-lg bg-[var(--color-muted)]">
               <p className="text-[var(--color-muted-foreground)]">持仓收益</p>
-              <p className={`font-bold ${benchmark.holding_return >= 0 ? "text-red-500" : "text-green-500"}`}>
-                {benchmark.holding_return >= 0 ? "+" : ""}{benchmark.holding_return}%
+              <p className={`font-bold ${safeNum(benchmark.holding_return) >= 0 ? "text-red-500" : "text-green-500"}`}>
+                {safeNum(benchmark.holding_return) >= 0 ? "+" : ""}{safeNum(benchmark.holding_return)}%
               </p>
             </div>
             <div className="p-2 rounded-lg bg-[var(--color-muted)]">
               <p className="text-[var(--color-muted-foreground)]">沪深300</p>
-              <p className={`font-bold ${benchmark.benchmark_return >= 0 ? "text-red-500" : "text-green-500"}`}>
-                {benchmark.benchmark_return >= 0 ? "+" : ""}{benchmark.benchmark_return}%
+              <p className={`font-bold ${safeNum(benchmark.benchmark_return) >= 0 ? "text-red-500" : "text-green-500"}`}>
+                {safeNum(benchmark.benchmark_return) >= 0 ? "+" : ""}{safeNum(benchmark.benchmark_return)}%
               </p>
             </div>
             <div className="p-2 rounded-lg bg-[var(--color-muted)]">
               <p className="text-[var(--color-muted-foreground)]">超额收益</p>
-              <p className={`font-bold ${benchmark.alpha >= 0 ? "text-red-500" : "text-green-500"}`}>
-                {benchmark.alpha >= 0 ? "+" : ""}{benchmark.alpha}%
+              <p className={`font-bold ${safeNum(benchmark.alpha) >= 0 ? "text-red-500" : "text-green-500"}`}>
+                {safeNum(benchmark.alpha) >= 0 ? "+" : ""}{safeNum(benchmark.alpha)}%
               </p>
             </div>
           </div>
           <p className="text-[10px] text-[var(--color-muted-foreground)] text-center">
-            基于 {benchmark.days} 天价格数据
+            基于 {safeNum(benchmark.days)} 天价格数据
           </p>
         </div>
       )}
@@ -253,6 +290,7 @@ export default function HoldingDetailPage() {
               value={txForm.tx_date}
               onChange={(e) => setTxForm({ ...txForm, tx_date: e.target.value })}
               className="cute-input text-xs"
+              placeholder="留空默认今天"
             />
             <input
               placeholder="备注（可选）"
@@ -262,7 +300,9 @@ export default function HoldingDetailPage() {
             />
             <div className="flex gap-2">
               <button onClick={() => setShowTxForm(false)} className="flex-1 btn-soft text-xs py-2">取消</button>
-              <button onClick={handleAddTx} className="flex-1 btn-primary text-xs py-2">确认</button>
+              <button onClick={handleAddTx} disabled={!canSubmit} className="flex-1 btn-primary text-xs py-2 disabled:opacity-40">
+                确认
+              </button>
             </div>
           </div>
         )}
@@ -272,20 +312,26 @@ export default function HoldingDetailPage() {
         ) : (
           <div className="space-y-2">
             {detail.transactions.map((tx) => (
-              <div key={tx.id} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--color-muted)]">
+              <div key={tx.id} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--color-muted)] group">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
                   tx.tx_type === "buy" ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"
                 }`}>
                   {tx.tx_type === "buy" ? "买入" : "卖出"}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium">¥{tx.price.toFixed(4)} × {tx.shares}份</p>
+                  <p className="text-xs font-medium">¥{safeNum(tx.price).toFixed(4)} × {safeNum(tx.shares)}份</p>
                   <p className="text-[10px] text-[var(--color-muted-foreground)]">
                     {tx.tx_date ? new Date(tx.tx_date).toLocaleDateString() : ""}
                     {tx.note ? ` · ${tx.note}` : ""}
                   </p>
                 </div>
-                <p className="text-xs font-bold">¥{tx.amount.toFixed(2)}</p>
+                <p className="text-xs font-bold">¥{safeNum(tx.amount).toFixed(2)}</p>
+                <button
+                  onClick={() => setConfirmDeleteTx(tx.id)}
+                  className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-background)] transition-all"
+                >
+                  <Trash2 size={12} className="text-[var(--color-destructive)]" />
+                </button>
               </div>
             ))}
           </div>
@@ -293,6 +339,17 @@ export default function HoldingDetailPage() {
       </div>
 
       <ToastContainer />
+
+      {confirmDeleteTx !== null && (
+        <ConfirmDialog
+          title="删除交易记录"
+          message="确定要删除这条交易记录吗？"
+          confirmLabel="删除"
+          destructive
+          onConfirm={() => handleDeleteTx(confirmDeleteTx)}
+          onCancel={() => setConfirmDeleteTx(null)}
+        />
+      )}
     </div>
   );
 }

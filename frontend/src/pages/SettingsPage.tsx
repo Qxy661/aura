@@ -19,6 +19,7 @@ interface TestResult {
 }
 
 const STORAGE_KEY = "aura_llm_config";
+const SYNC_TIME_KEY = "aura_llm_last_sync";
 
 export default function SettingsPage() {
   const { showSuccess, showError, ToastContainer } = useToast();
@@ -28,14 +29,18 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [saved, setSaved] = useState(false);
+  const [lastSync, setLastSync] = useState<string | null>(null);
 
-  // Load from localStorage on mount
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setConfig(JSON.parse(raw));
+      const syncTime = localStorage.getItem(SYNC_TIME_KEY);
+      if (syncTime) setLastSync(syncTime);
     } catch { /* ignore */ }
   }, []);
+
+  const canSave = config.api_key.trim() !== "" && config.base_url.trim() !== "";
 
   const handleTest = async () => {
     setTesting(true);
@@ -51,16 +56,22 @@ export default function SettingsPage() {
   };
 
   const handleSave = async () => {
+    if (!canSave) return;
     setSaving(true);
     setSaved(false);
+    const now = new Date().toLocaleString("zh-CN");
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
       await api.post("/settings/llm", config);
+      localStorage.setItem(SYNC_TIME_KEY, now);
+      setLastSync(now);
       setSaved(true);
       showSuccess("配置已保存并同步到服务器");
       setTimeout(() => setSaved(false), 2000);
     } catch {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      localStorage.setItem(SYNC_TIME_KEY, now);
+      setLastSync(now);
       setSaved(true);
       showError("服务器同步失败，已保存到本地");
       setTimeout(() => setSaved(false), 2000);
@@ -82,7 +93,7 @@ export default function SettingsPage() {
         {/* API URL */}
         <div>
           <label className="block text-xs font-bold text-[var(--color-muted-foreground)] mb-1.5">
-            API 地址
+            API 地址 <span className="text-[var(--color-destructive)]">*</span>
           </label>
           <input
             className="cute-input"
@@ -95,7 +106,7 @@ export default function SettingsPage() {
         {/* API Key */}
         <div>
           <label className="block text-xs font-bold text-[var(--color-muted-foreground)] mb-1.5">
-            API Key
+            API Key <span className="text-[var(--color-destructive)]">*</span>
           </label>
           <div className="relative">
             <input
@@ -159,14 +170,20 @@ export default function SettingsPage() {
             测试连接
           </button>
           <button
-            className="btn-primary flex items-center gap-2 flex-1 justify-center"
+            className="btn-primary flex items-center gap-2 flex-1 justify-center disabled:opacity-40"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !canSave}
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {saved ? "已保存 ✓" : "保存配置"}
           </button>
         </div>
+
+        {lastSync && (
+          <p className="text-[10px] text-[var(--color-muted-foreground)] text-center">
+            上次同步: {lastSync}
+          </p>
+        )}
       </div>
 
       {/* Info card */}

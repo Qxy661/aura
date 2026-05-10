@@ -57,3 +57,63 @@ class WeeklyReport(Base):
     period_start = Column(DateTime, nullable=False)
     period_end = Column(DateTime, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+
+
+class SectorFlowSnapshot(Base):
+    """每日收盘板块资金流向快照"""
+    __tablename__ = "sector_flow_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    snapshot_date = Column(String(10), nullable=False, index=True)  # YYYY-MM-DD
+    sector_type = Column(String(20), nullable=False)  # industry / concept
+    sector_code = Column(String(20), nullable=False)
+    sector_name = Column(String(100), nullable=False)
+    change_pct = Column(Float, default=0)
+    main_net_inflow = Column(Float, default=0)  # 主力净流入(元)
+    main_net_inflow_pct = Column(Float, default=0)
+    super_large_net_inflow = Column(Float, default=0)
+    large_net_inflow = Column(Float, default=0)
+    medium_net_inflow = Column(Float, default=0)
+    small_net_inflow = Column(Float, default=0)
+    recorded_at = Column(DateTime, server_default=func.now())
+
+
+class WatchlistItem(Base):
+    """关注列表 — 用户想跟踪但尚未买入的标的"""
+    __tablename__ = "watchlist_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    code = Column(String(50), nullable=False)
+    asset_type = Column(String(50), default="fund")
+    target_price = Column(Float, nullable=True)   # 目标买入价
+    note = Column(Text, default="")
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class PriceAlert(Base):
+    """价格提醒 — 当持仓价格达到目标时提醒用户"""
+    __tablename__ = "price_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    holding_id = Column(Integer, ForeignKey("holdings.id"), nullable=False)
+    alert_type = Column(String(20), nullable=False)  # "above" / "below"
+    target_price = Column(Float, nullable=False)
+    is_active = Column(Integer, default=1)  # 1=active, 0=triggered/disabled
+    triggered_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class DailyMarketSummary(Base):
+    """每日收盘AI总结"""
+    __tablename__ = "daily_market_summaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    summary_date = Column(String(10), nullable=False, unique=True, index=True)  # YYYY-MM-DD
+    summary_content = Column(Text, nullable=False)  # AI生成的总结
+    net_inflow_count = Column(Integer, default=0)
+    net_outflow_count = Column(Integer, default=0)
+    total_net_flow = Column(Float, default=0)  # 全市场净流入(元)
+    top_inflow_sectors = Column(Text, default="")  # JSON: top流入板块
+    top_outflow_sectors = Column(Text, default="")  # JSON: top流出板块
+    created_at = Column(DateTime, server_default=func.now())

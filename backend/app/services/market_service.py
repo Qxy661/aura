@@ -153,6 +153,84 @@ def fetch_holding_price(code: str, asset_type: str) -> Optional[dict]:
     return result
 
 
+def get_fund_detail(code: str) -> Optional[dict]:
+    """Fetch detailed fund info from Eastmoney including NAV history and returns."""
+    try:
+        with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+            resp = client.get(EASTMONEY_FUND_URL.format(code=code))
+            resp.raise_for_status()
+            raw = resp.text
+
+        # Extract fund name
+        name_match = re.search(r'fS_name\s*=\s*"(.+?)"', raw)
+        name = name_match.group(1) if name_match else ""
+
+        # Extract fund type
+        type_match = re.search(r'fS_code\s*=\s*"(.+?)"', raw)
+
+        # Extract NAV trend data
+        nav_match = re.search(r'Data_netWorthTrend\s*=\s*(\[.+?\]);', raw)
+        if not nav_match:
+            return None
+
+        nav_data = json.loads(nav_match.group(1))
+        if not nav_data or len(nav_data) < 2:
+            return None
+
+        # Calculate returns over different periods
+        now_ts = nav_data[-1]["x"]
+        last_nav = float(nav_data[-1]["y"])
+
+        def nav_at_days_ago(days):
+            target_ts = now_ts - days * 86400000
+            for item in reversed(nav_data):
+                if item["x"] <= target_ts:
+                    return float(item["y"])
+            return float(nav_data[0]["y"])
+
+        nav_7d = nav_at_days_ago(7)
+        nav_30d = nav_at_days_ago(30)
+        nav_90d = nav_at_days_ago(90)
+        nav_180d = nav_at_days_ago(180)
+        nav_365d = nav_at_days_ago(365)
+
+        def pct_change(old, new):
+            return round((new - old) / old * 100, 2) if old > 0 else 0
+
+        # Recent NAV history (last 30 points for sparkline)
+        step = max(1, len(nav_data) // 30)
+        recent_nav = [{"date": item["x"], "nav": float(item["y"])} for item in nav_data[::step][-30:]]
+
+        # Calculate volatility from daily returns
+        daily_returns = []
+        for i in range(1, min(60, len(nav_data))):
+            prev = float(nav_data[-(i + 1)]["y"])
+            curr = float(nav_data[-i]["y"])
+            if prev > 0:
+                daily_returns.append((curr - prev) / prev)
+        volatility = 0.0
+        if len(daily_returns) > 5:
+            import statistics
+            volatility = round(statistics.stdev(daily_returns) * (252 ** 0.5) * 100, 1)
+
+        return {
+            "code": code,
+            "name": name,
+            "nav": last_nav,
+            "return_7d": pct_change(nav_7d, last_nav),
+            "return_30d": pct_change(nav_30d, last_nav),
+            "return_90d": pct_change(nav_90d, last_nav),
+            "return_180d": pct_change(nav_180d, last_nav),
+            "return_365d": pct_change(nav_365d, last_nav),
+            "volatility": volatility,
+            "data_points": len(nav_data),
+            "recent_nav": recent_nav,
+        }
+    except Exception as e:
+        logger.warning(f"Failed to fetch fund detail for {code}: {e}")
+        return None
+
+
 def search_funds(query: str, limit: int = 10) -> list:
     """Search funds by name or code via Eastmoney API."""
     if not query or len(query) < 2:

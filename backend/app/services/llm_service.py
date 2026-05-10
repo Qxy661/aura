@@ -867,3 +867,69 @@ def analyze_paper_structured(title: str, abstract: str, summary: str, key_points
     if isinstance(result, dict):
         return result
     return {}
+
+
+@with_retry(max_retries=2)
+def generate_daily_market_summary(
+    date_str: str,
+    industry_summary: dict,
+    concept_summary: dict,
+) -> str:
+    """Generate daily market closing summary from sector fund flow data."""
+    def format_top(items: list, label: str) -> str:
+        if not items:
+            return f"{label}: 暂无数据"
+        lines = []
+        for i, item in enumerate(items[:5], 1):
+            net_yi = item["main_net_inflow"] / 1e8
+            lines.append(f"  {i}. {item['name']}: 净流入{net_yi:+.2f}亿, 涨跌{item['change_pct']:+.2f}%")
+        return f"{label}:\n" + "\n".join(lines)
+
+    industry_top_in = format_top(industry_summary.get("top_inflow", []), "行业净流入TOP5")
+    industry_top_out = format_top(industry_summary.get("top_outflow", []), "行业净流出TOP5")
+    concept_top_in = format_top(concept_summary.get("top_inflow", []), "概念净流入TOP5")
+    concept_top_out = format_top(concept_summary.get("top_outflow", []), "概念净流出TOP5")
+
+    industry_net = industry_summary.get("net_flow", 0) / 1e8
+    concept_net = concept_summary.get("net_flow", 0) / 1e8
+    industry_in_count = industry_summary.get("inflow_count", 0)
+    industry_out_count = industry_summary.get("outflow_count", 0)
+    concept_in_count = concept_summary.get("inflow_count", 0)
+    concept_out_count = concept_summary.get("outflow_count", 0)
+
+    user_content = (
+        f"日期: {date_str}\n\n"
+        f"【行业板块】\n"
+        f"净流入板块: {industry_in_count}个, 净流出板块: {industry_out_count}个\n"
+        f"全市场主力净流入: {industry_net:+.2f}亿\n"
+        f"{industry_top_in}\n{industry_top_out}\n\n"
+        f"【概念板块】\n"
+        f"净流入板块: {concept_in_count}个, 净流出板块: {concept_out_count}个\n"
+        f"全市场主力净流入: {concept_net:+.2f}亿\n"
+        f"{concept_top_in}\n{concept_top_out}"
+    )
+
+    response = get_client().chat.completions.create(
+        model=get_effective_llm_config()["model"],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是一位资深A股市场分析师。请根据今日板块资金流向数据，生成一份简洁的收盘总结。\n"
+                    "要求：\n"
+                    "1. 开头用一句话概括今日市场整体资金面（净流入/流出态势）\n"
+                    "2. 分析行业板块资金流向特征（哪些行业受追捧、哪些被抛弃）\n"
+                    "3. 分析概念板块热点（哪些概念有资金聚集）\n"
+                    "4. 指出值得关注的信号（如板块轮动迹象、异常资金流向等）\n"
+                    "5. 给出明日关注方向（1-2条）\n\n"
+                    "风格：简洁专业，用中文，Markdown格式，总字数300-500字。"
+                ),
+            },
+            {"role": "user", "content": user_content},
+        ],
+        temperature=0.4,
+        max_tokens=2000,
+        extra_body={"reasoning_effort": "low"},
+    )
+
+    return response.choices[0].message.content or "今日市场总结生成失败。"
